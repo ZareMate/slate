@@ -16,6 +16,7 @@ local ui = use("system/ui")
 local catalog = use("system/catalog")
 local notify = use("system/notify")
 local infection = use("system/infection")
+local verity = use("system/verity")
 local compat = use("system/compat")
 local dev = use("system/dev")
 local wallpaper = use("system/wallpaper")
@@ -46,6 +47,7 @@ local COUNTDOWN = 10               -- visible warning before it happens
 local status
 local statusUntil = 0
 local dragging = nil               -- { id, slot, mx, my, moved } while held
+local hauntFrame = 0
 
 -- catalog.all() reads settings and rebuilds a list; the taskbar, the icons
 -- and the start menu all wanted it in the same frame. Cached for the frame
@@ -208,6 +210,7 @@ function desktop.drawBackground(win)
   -- Drawn before the icons so the desktop stays clickable: the infection is
   -- meant to look alarming, not to lock you out of the cure.
   if infection.active() then infection.glitch(win, W, DESK_H) end
+  if verity.active() then verity.haunt(win, W, DESK_H, hauntFrame) end
 
   for index, app in ipairs(apps()) do
     local x, y = iconRect(index)
@@ -239,6 +242,11 @@ end
 function desktop.drawTaskbar(target)
   local W, H = kernel.size()
   ui.fill(target, 1, H, W, 1, theme.colour.bar)
+
+  if verity.active() then
+    local mark = verity.banner()
+    ui.text(target, math.max(1, W - #mark - 6), H, mark, colours.white, colours.red)
+  end
 
   if infection.active() then
     local banner = infection.banner()
@@ -651,12 +659,26 @@ local function backgroundHidden()
   return false
 end
 
+-- Fullscreen, so there is nowhere to look away to. Spawned as an ordinary
+-- process, which means it still has an X and cannot wedge the desktop.
+local function wakeVerity(why)
+  local W, _, DESK_H = kernel.size()
+  kernel.spawn({
+    title = "?",
+    w = W, h = DESK_H, x = 1, y = 1,
+    run = function(ctx) verity.scene(ctx, why) end,
+  })
+end
+
 function desktop.systemEvent(event)
   if event[1] == "timer" and event[2] == clockTimer then
     clockTimer = os.startTimer(1)
     infection.tick(spawnPopup)
     considerRestart()
     kernel.invalidate()
+
+  elseif event[1] == "slate_verity" then
+    wakeVerity(event[2])
 
   elseif event[1] == "timer" and event[2] == autostartTimer then
     autostartTimer = nil
@@ -674,7 +696,8 @@ function desktop.systemEvent(event)
 
   elseif event[1] == "timer" and event[2] == animTimer then
     animTimer = os.startTimer(0.3)
-    if wallpaper.animated() and not backgroundHidden() then
+    hauntFrame = hauntFrame + 1
+    if (wallpaper.animated() or verity.active()) and not backgroundHidden() then
       wallpaper.tick()
       kernel.invalidate()
     end

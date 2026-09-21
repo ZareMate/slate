@@ -13,6 +13,7 @@ local ui = use("system/ui")
 local theme = use("system/theme")
 local sound = use("system/sound")
 local infection = use("system/infection")
+local verity = use("system/verity")
 local catalog = use("system/catalog")
 
 local app = {}
@@ -44,7 +45,9 @@ function app.run(ctx)
     frame()
     if infection.active() then
       centre(5, " 1 THREAT ACTIVE ", colours.white, colours.red)
-      centre(7, "FreeRAM.exe is on this computer.", theme.colour.windowText, theme.colour.window)
+      centre(7, verity.active() and "Something is watching this computer."
+        or "FreeRAM.exe is on this computer.",
+        theme.colour.windowText, theme.colour.window)
     else
       centre(5, " No threats found ", colours.white, colours.green)
       centre(7, "This computer is clean.", theme.colour.mutedText, theme.colour.window)
@@ -55,7 +58,7 @@ function app.run(ctx)
 
   local function scan()
     state = "scanning"
-    found = infection.active()
+    found = infection.active() or verity.active()
 
     for index, path in ipairs(SCAN) do
       frame()
@@ -84,7 +87,8 @@ function app.run(ctx)
     end
 
     centre(4, " THREAT FOUND ", colours.white, colours.red)
-    centre(6, "Trojan.FreeRAM", theme.colour.windowText, theme.colour.window)
+    centre(6, verity.active() and "Watcher.Verity" or "Trojan.FreeRAM",
+      theme.colour.windowText, theme.colour.window)
     centre(8, "Remove it?", theme.colour.windowText, theme.colour.window)
     ui.row(term, 1, height, width, " [Y] remove    [N] leave it",
       theme.colour.mutedText, theme.colour.muted)
@@ -97,6 +101,7 @@ function app.run(ctx)
     sleep(0.8)
 
     infection.cure()
+    verity.cure()
 
     -- Deleting the app is optional and separate: it stops FreeRAM being run
     -- again, but it is the flag above that was actually making a mess.

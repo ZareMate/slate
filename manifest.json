@@ -1,5 +1,5 @@
 {
-  "version": "1.28",
+  "version": "1.29",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -30,6 +30,7 @@
     "system/theme.lua",
     "system/ui.lua",
     "system/update.lua",
+    "system/verity.lua",
     "system/wallpaper.lua"
   ],
   "cloud": [
@@ -55,5 +56,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "No store folder: apps download from where they live in the repo."
+  "notes": "Verity: a tripwire that refuses destructive actions and then makes a scene."
 }
