@@ -1,5 +1,5 @@
 {
-  "version": "1.19",
+  "version": "1.20",
   "files": [
     "apps/editor.lua",
     "apps/files.lua",
@@ -43,5 +43,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Stasis: chamber list and pulls against your stasis server."
+  "notes": "Minesweeper is readable now: white opened cells, dark numbers, a yellow cursor."
 }

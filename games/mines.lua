@@ -7,11 +7,18 @@ local sound = use("system/sound")
 
 local game = {}
 
+-- Opened cells are WHITE, so every number is a dark colour on a light
+-- background. The old set put lightBlue, lime and cyan on lightGrey, which
+-- is barely legible on a colour monitor and invisible in greyscale.
 local NUMBER_COLOUR = {
-  [1] = colours.lightBlue, [2] = colours.lime, [3] = colours.red,
-  [4] = colours.purple, [5] = colours.orange, [6] = colours.cyan,
-  [7] = colours.magenta, [8] = colours.grey,
+  [1] = colours.blue,   [2] = colours.green,  [3] = colours.red,
+  [4] = colours.purple, [5] = colours.brown,  [6] = colours.cyan,
+  [7] = colours.black,  [8] = colours.grey,
 }
+
+local COVERED = colours.grey        -- dark: unmistakably "not opened yet"
+local OPENED = colours.white        -- light: maximum contrast for numbers
+local CURSOR = colours.yellow       -- bright, and nothing else on the board uses it
 
 function game.run(ctx)
   local width, height = term.getSize()
@@ -107,9 +114,9 @@ function game.run(ctx)
         local py = oy + y - 1
         if py > height - 1 then break end
 
-        local bg, text, fg = colours.grey, "  ", colours.white
+        local bg, text, fg = COVERED, "  ", colours.white
         if cell.open then
-          bg = colours.lightGrey
+          bg = OPENED
           if cell.mine then bg, text, fg = colours.red, " *", colours.white
           elseif cell.near > 0 then
             text = " " .. cell.near
@@ -119,12 +126,15 @@ function game.run(ctx)
           bg, text, fg = colours.orange, " F", colours.black
         end
 
+        -- The cursor recolours the whole cell rather than overwriting half of
+        -- it with a bracket, so the number or flag underneath stays readable.
+        if x == cx and y == cy and not dead and not won then
+          bg = CURSOR
+          if fg == colours.white then fg = colours.black end
+        end
+
         ui.fill(term, px, py, 2, 1, bg)
         ui.text(term, px, py, text, fg, bg)
-
-        if x == cx and y == cy and not dead and not won then
-          ui.text(term, px, py, "[", theme.colour.accent, bg)
-        end
       end
     end
 
