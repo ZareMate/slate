@@ -313,6 +313,7 @@ function app.run(ctx)
       elseif state == "diagnostics" then
         if my == 1 then state = "peers"; draw() end
       else
+        local _, height = term.getSize()
         if my == 1 then
           messenger.setActive(nil)
           state = "peers"
