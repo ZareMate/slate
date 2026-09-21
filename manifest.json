@@ -1,5 +1,5 @@
 {
-  "version": "1.23",
+  "version": "1.24",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -45,5 +45,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Apps come from pluggable sources: anyone can publish, anyone can add a source."
+  "notes": "Messenger starts with the desktop, minimised."
 }

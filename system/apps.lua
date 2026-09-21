@@ -39,8 +39,11 @@ return {
     -- Core, not a store app: talking to the other computers is the reason
     -- most of these are networked in the first place, and it must work on a
     -- machine that has never reached the store.
+    -- autostart: it is only useful if it is already listening. Started
+    -- minimised, so it is connected and collecting messages without
+    -- covering the desktop every boot.
     id = "messenger", title = "Messenger", module = "apps/messenger", w = 42, h = 15,
-    single = true,
+    single = true, autostart = true,
     icon = { "2222222", "2222222", " 2     " },
   },
   {

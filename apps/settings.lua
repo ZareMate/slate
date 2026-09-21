@@ -177,6 +177,24 @@ function app.run(ctx)
             or ("Failed: " .. tostring(err)))
         end,
       },
+      {
+        label = "Start at login",
+        value = (function()
+          local list = catalog.autostart()
+          return #list == 0 and "none" or table.concat(list, " ")
+        end)(),
+        act = function()
+          local current = table.concat(catalog.autostart(), " ")
+          local typed = ask("App ids to start, space separated:", current)
+          if typed == nil then return end
+          local wanted = {}
+          for id in typed:gmatch("%S+") do wanted[id:lower()] = true end
+          for _, entry in ipairs(catalog.all()) do
+            catalog.setAutostart(entry.id, wanted[entry.id] == true)
+          end
+          say("Saved")
+        end,
+      },
       { label = "Computer", value = "#" .. os.getComputerID(), fact = true },
       { label = "Free space", value = freeSpace(), fact = true },
       { label = "Uptime", value = uptime(), fact = true },

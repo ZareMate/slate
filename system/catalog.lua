@@ -186,6 +186,39 @@ function catalog.unpin(id)
   return false
 end
 
+--------------------------------------------------------------------------
+-- autostart
+--------------------------------------------------------------------------
+
+local function overrides()
+  local ok, value = pcall(settings.get, "slate.autostart")
+  if ok and type(value) == "table" then return value end
+  return {}
+end
+
+-- Registry defaults, with the user's on/off overrides applied. Stored as a
+-- map rather than a list so turning something off is remembered even though
+-- the registry still says it should start.
+function catalog.autostart()
+  local chosen = overrides()
+  local out = {}
+  for _, app in ipairs(catalog.all()) do
+    local wanted = chosen[app.id]
+    if wanted == nil then wanted = app.autostart == true end
+    if wanted then out[#out + 1] = app.id end
+  end
+  return out
+end
+
+function catalog.setAutostart(id, on)
+  local chosen = overrides()
+  chosen[id] = on and true or false
+  pcall(function()
+    settings.set("slate.autostart", chosen)
+    settings.save()
+  end)
+end
+
 function catalog.setOrder(ids)
   load()
   order = ids
