@@ -224,6 +224,21 @@ function app.run(ctx)
         end,
       },
       { label = "Apps", value = tostring(#catalog.all()), fact = true },
+      {
+        label = "Free up space", value = "cloud apps",
+        act = function()
+          -- Only removes app code that can be fetched again. Nothing you made
+          -- and nothing the OS needs offline is touched.
+          local cloud = use("system/cloud")
+          local modules = {}
+          for _, entry in ipairs(catalog.builtins()) do
+            if entry.cloud then modules[#modules + 1] = entry.module end
+          end
+          local freed = cloud.evict(modules, root)
+          say(freed > 0 and ("Freed " .. math.floor(freed / 1024) .. "K")
+            or "Nothing cached to remove")
+        end,
+      },
       { label = "Heap", value = (dev.heapKB() and (dev.heapKB() .. "K")) or "n/a",
         fact = true },
     }

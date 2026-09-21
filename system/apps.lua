@@ -1,4 +1,10 @@
---[[ The built-in app registry - the core only.
+--[[ The built-in app registry.
+
+  `cloud = true` means the code is not shipped with the install: the icon is
+  there, and the file is fetched the first time you open it. Apps a computer
+  with no network still needs - Files, Terminal, Editor, Settings, Store,
+  Tasks, Updater, Messenger - are deliberately NOT cloud apps.
+
 
   Everything optional lives in the Store instead (Music, Messenger, Furnace,
   and the joke pair), which keeps a fresh desktop readable and means those
@@ -38,12 +44,18 @@ return {
     icon = { "2222222", "2222222", " 2     " },
   },
   {
-    id = "remote", title = "Remote", module = "apps/remote", w = 44, h = 15,
+    -- Needs your own Gemini API key; it prompts on first use and ships none.
+    id = "bitai", title = "BitAI", module = "apps/bitai", w = 46, h = 16, cloud = true,
+    single = true,
+    icon = { " 99999 ", "9 0 0 9", " 99999 " },
+  },
+  {
+    id = "remote", title = "Remote", module = "apps/remote", w = 44, h = 15, cloud = true,
     single = true,
     icon = { "9999999", "9  0  9", "  999  " },
   },
   {
-    id = "minebit", title = "Minebit", module = "apps/minebit", w = 44, h = 16,
+    id = "minebit", title = "Minebit", module = "apps/minebit", w = 44, h = 16, cloud = true,
     icon = { "5     5", "5555555", " 5   5 " },
   },
   {
@@ -62,11 +74,11 @@ return {
     icon = { "   9   ", "  999  ", " 99999 " },
   },
   {
-    id = "devices", title = "Devices", module = "apps/devices", w = 40, h = 13,
+    id = "devices", title = "Devices", module = "apps/devices", w = 40, h = 13, cloud = true,
     icon = { "a   a  ", "aaaaaaa", "  aaa  " },
   },
   {
-    id = "console", title = "Console", module = "apps/console", w = 44, h = 15,
+    id = "console", title = "Console", module = "apps/console", w = 44, h = 15, cloud = true,
     single = true, dev = true,
     icon = { "fffffff", "f5 ffff", "fffffff" },
   },

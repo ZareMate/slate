@@ -1,27 +1,19 @@
 {
-  "version": "1.15",
+  "version": "1.18",
   "files": [
-    "apps/console.lua",
-    "apps/devices.lua",
     "apps/editor.lua",
     "apps/files.lua",
     "apps/messenger.lua",
-    "apps/minebit.lua",
-    "apps/remote.lua",
     "apps/settings.lua",
     "apps/store.lua",
     "apps/tasks.lua",
     "apps/terminal.lua",
     "apps/updater.lua",
-    "games/blocks.lua",
-    "games/mines.lua",
-    "games/pong.lua",
-    "games/snake.lua",
-    "games/stacks.lua",
     "startup.lua",
     "system/apps.lua",
     "system/bootseq.lua",
     "system/catalog.lua",
+    "system/cloud.lua",
     "system/compat.lua",
     "system/desktop.lua",
     "system/dev.lua",
@@ -38,5 +30,17 @@
     "system/update.lua",
     "system/wallpaper.lua"
   ],
-  "notes": "Remote desktop over rednet, and only changed rows are repainted."
+  "cloud": [
+    "apps/bitai.lua",
+    "apps/console.lua",
+    "apps/devices.lua",
+    "apps/minebit.lua",
+    "apps/remote.lua",
+    "games/blocks.lua",
+    "games/mines.lua",
+    "games/pong.lua",
+    "games/snake.lua",
+    "games/stacks.lua"
+  ],
+  "notes": "Apps are fetched from cloud storage on first open; BitAI added."
 }

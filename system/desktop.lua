@@ -19,6 +19,7 @@ local infection = use("system/infection")
 local compat = use("system/compat")
 local dev = use("system/dev")
 local wallpaper = use("system/wallpaper")
+local cloud = use("system/cloud")
 
 local desktop = {}
 
@@ -79,6 +80,23 @@ function desktop.launch(id, args)
   if app.api and not compat.satisfies(app.api) then
     desktop.notify(app.title .. ": " .. compat.tooNew(app.api))
     return nil
+  end
+
+  -- Cloud apps arrive on first open. The download is visible, because a
+  -- window that takes two seconds to appear with no explanation reads as
+  -- broken.
+  if app.cloud and not cloud.isCached(app.module, kernel.root()) then
+    if not cloud.available() then
+      desktop.notify(app.title .. " needs a connection to download")
+      return nil
+    end
+    desktop.notify("Downloading " .. app.title .. "...")
+    kernel.draw()
+    local fetched, why = cloud.fetch(app.module, kernel.root())
+    if not fetched then
+      desktop.notify(app.title .. ": " .. tostring(why))
+      return nil
+    end
   end
 
   -- A store app is a file that might have been deleted or be broken; that
