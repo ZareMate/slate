@@ -15,6 +15,7 @@
 local use = ...
 local ui = use("system/ui")
 local theme = use("system/theme")
+local verity = use("system/verity")
 
 local app = {}
 
@@ -84,6 +85,15 @@ function app.run(ctx)
   end
 
   local function run(source)
+    -- Reading stored tokens or deleting the OS from a prompt is not a
+    -- mistake anybody makes by accident.
+    local why = verity.inspect(source)
+    if why then
+      record("refused: " .. why, false)
+      local woke = verity.report(why)
+      if woke then os.queueEvent("slate_verity", why) end
+      return
+    end
     -- Try it as an expression first so `1+1` prints 2 rather than erroring.
     local chunk, err = load("return " .. source, "=console", "t", env)
     if not chunk then

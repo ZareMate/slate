@@ -8,6 +8,7 @@
 local use = ...
 local ui = use("system/ui")
 local theme = use("system/theme")
+local verity = use("system/verity")
 
 local app = {}
 
@@ -209,7 +210,12 @@ function app.run(ctx, startDir)
       elseif key == keys.delete then
         local entry = entries[index]
         if entry and not entry.up then
-          if fs.isReadOnly(entry.path) then
+          if verity.isProtected(entry.path) then
+            -- Refused first, noticed second. The refusal is the real part.
+            local woke, _, why = verity.report("deleting " .. entry.name)
+            notice("Not allowed", entry.name .. " is part of the OS")
+            if woke then os.queueEvent("slate_verity", why) end
+          elseif fs.isReadOnly(entry.path) then
             notice("Cannot delete", entry.name .. " is read-only")
           elseif confirm("Delete", "Delete " .. ui.clip(entry.name, 20) .. "?") then
             local ok, err = pcall(fs.delete, entry.path)
