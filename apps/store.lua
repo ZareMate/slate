@@ -86,7 +86,10 @@ function app.run(ctx)
             if type(entry) == "table" and entry.id and not seen[entry.id] then
               seen[entry.id] = true
               entry.sourceName = source.name
-              entry.sourceUrl = source.url
+              -- A catalogue may serve its files from elsewhere; index-level
+              -- "source" says where. (ZareMate.)
+              entry.sourceUrl = (type(parsed.source) == "string"
+                and parsed.source:gsub("/+$", "")) or source.url
               entries[#entries + 1] = entry
             end
           end
@@ -115,7 +118,7 @@ function app.run(ctx)
     handle.write(body)
     handle.close()
 
-    catalog.install({
+    local registered, why = catalog.install({
       id = id,
       title = (meta and meta.title) or id,
       module = module,
@@ -124,7 +127,14 @@ function app.run(ctx)
       icon = type(meta and meta.icon) == "table" and meta.icon or nil,
       single = (meta and meta.single) == true,
       api = tonumber(meta and meta.api),
-    })
+    }, root)
+
+    -- Roll back on a failed registration: a file on disk the catalog does not
+    -- know about is an app you can neither run nor uninstall. (ZareMate.)
+    if not registered then
+      pcall(fs.delete, path)
+      return false, tostring(why)
+    end
     return true
   end
 
@@ -133,7 +143,11 @@ function app.run(ctx)
       say("That id belongs to a built-in app")
       return
     end
-    if type(entry.file) ~= "string" or entry.file:find("%.%.") then
+    if type(entry.id) ~= "string" or not entry.id:match("^[%w_-]+$") then
+      say("Bad app id in the index")
+      return
+    end
+    if type(entry.file) ~= "string" or entry.file:find("%.%.") or entry.file:match("^/") then
       say("Bad file name in the index")
       return
     end
@@ -143,7 +157,12 @@ function app.run(ctx)
     end
 
     state = "busy"
-    local body, err = fetch(entry.sourceUrl .. "/" .. entry.file)
+    -- An index may host its payloads somewhere other than the index itself,
+    -- and an entry may override that again. Falls back to the source the
+    -- catalogue came from. (ZareMate, PR #1.)
+    local origin = (type(entry.source) == "string" and entry.source:gsub("/+$", ""))
+      or entry.sourceUrl
+    local body, err = fetch(origin .. "/" .. entry.file)
     state = "list"
     if not body or body == "" then
       say("Download failed: " .. tostring(err or "empty"))

@@ -1,5 +1,5 @@
 {
-  "version": "1.25",
+  "version": "1.26",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -45,5 +45,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Screen sharing can drive a monitor: full size, touch-controllable."
+  "notes": "Merges ZareMate's store hardening; screen sharing onto monitors."
 }
