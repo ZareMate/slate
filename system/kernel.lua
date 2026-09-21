@@ -686,9 +686,13 @@ function kernel.run()
       handleMouse(event)
 
     elseif name == "monitor_touch" then
-      -- An advanced monitor showing the mirror can drive Slate directly.
+      -- An advanced monitor showing the mirror can drive Slate directly. One
+      -- lent to an app is that app's to handle, so the event is passed on
+      -- instead of being swallowed.
       if screens.owns(event[2]) then
         handleMouse({ "mouse_click", 1, event[3], event[4], n = 4 }, true)
+      else
+        broadcast(event)
       end
 
     elseif name == "monitor_resize" then

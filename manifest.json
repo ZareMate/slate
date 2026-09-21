@@ -1,5 +1,5 @@
 {
-  "version": "1.24",
+  "version": "1.25",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -45,5 +45,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Messenger starts with the desktop, minimised."
+  "notes": "Screen sharing can drive a monitor: full size, touch-controllable."
 }

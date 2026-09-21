@@ -25,6 +25,7 @@ local ui = use("system/ui")
 local theme = use("system/theme")
 local kernel = use("system/kernel")
 local peripherals = use("system/peripherals")
+local screens = use("system/screens")
 
 local app = {}
 
@@ -77,6 +78,8 @@ function app.run(ctx)
   local hostId, typedKey = nil, ""
   local status = ""
   local canvas = nil               -- rows received from the host
+  local wall = nil                 -- monitor showing the shared screen
+  local wallSize = nil
 
   local function stopHosting()
     if watcher then
@@ -91,6 +94,7 @@ function app.run(ctx)
   end
 
   ctx.onClose(function()
+    if wall then pcall(screens.release, wall) end
     if watcher then pcall(kernel.unwatch, watcher) end
     for id in pairs(viewers) do pcall(rednet.send, id, { kind = "bye" }, PROTOCOL) end
     if weOpened then pcall(rednet.close, modem) end
@@ -199,7 +203,7 @@ function app.run(ctx)
       term.clear()
       ui.row(term, 1, 1, width, " Connecting...", theme.colour.accentText, theme.colour.accent)
       ui.text(term, 2, 3, status, theme.colour.mutedText, theme.colour.window)
-      ui.row(term, 1, height, width, " [X] disconnect",
+      ui.row(term, 1, height, width, " [M] monitor   [X] disconnect",
         theme.colour.mutedText, theme.colour.muted)
       return
     end
@@ -213,7 +217,9 @@ function app.run(ctx)
         term.blit(row[1]:sub(1, width), row[2]:sub(1, width), row[3]:sub(1, width))
       end
     end
-    ui.row(term, 1, height, width, " viewing #" .. tostring(hostId) .. "   [X] disconnect",
+    ui.row(term, 1, height, width,
+      " #" .. tostring(hostId) .. (wall and ("  on " .. wall) or "")
+      .. "   [M] monitor  [X] stop",
       colours.white, theme.colour.accent)
   end
 
@@ -249,10 +255,55 @@ function app.run(ctx)
   end
 
   local function applyFrame(message)
-    if message.full or not canvas then canvas = {} end
+    if message.full or not canvas then
+      canvas = {}
+      if wall then screens.clearClaimed(wall) end
+    end
     for _, row in ipairs(message.rows or {}) do
       canvas[row[1]] = { row[2], row[3], row[4] }
+      -- Straight onto the monitor at its own size. No clipping into a window
+      -- and no scaling, which is the whole point of putting it on a screen.
+      if wall then
+        if not screens.blitRow(wall, row[1], row[2], row[3], row[4]) then
+          wall, wallSize = nil, nil
+          status = "Monitor went away"
+        end
+      end
     end
+  end
+
+  -- Cycles through the attached monitors and back to window-only.
+  local function nextWall()
+    local monitors = screens.available()
+    if #monitors == 0 then
+      status = "No monitor attached"
+      return
+    end
+    local at = 0
+    for position, name in ipairs(monitors) do
+      if name == wall then at = position break end
+    end
+    if wall then screens.release(wall) end
+
+    local pick = monitors[at + 1]
+    if not pick then
+      wall, wallSize = nil, nil
+      status = "Showing in the window"
+      return
+    end
+    local ok, why = screens.claim(pick)
+    if not ok then
+      wall, wallSize = nil, nil
+      status = tostring(why)
+      return
+    end
+    wall = pick
+    local w, h = screens.claimedSize(pick)
+    wallSize = w and (w .. "x" .. h) or nil
+    status = "Showing on " .. pick
+    -- Ask the host for a complete frame: the monitor is blank and only
+    -- changed rows arrive from here on.
+    pcall(rednet.send, hostId, { kind = "hello", key = typedKey }, PROTOCOL)
   end
 
   ------------------------------------------------------------------
@@ -323,8 +374,13 @@ function app.run(ctx)
         end
 
       elseif mode == "viewing" then
-        if name == "key" and event[2] == keys.x then
+        if name == "key" and event[2] == keys.m then
+          nextWall()
+          draw()
+        elseif name == "key" and event[2] == keys.x then
           pcall(rednet.send, hostId, { kind = "bye" }, PROTOCOL)
+          if wall then screens.release(wall) end
+          wall, wallSize = nil, nil
           mode = "menu"
           canvas = nil
           status = "Disconnected"
@@ -336,6 +392,14 @@ function app.run(ctx)
           }, PROTOCOL)
         end
       end
+
+    elseif name == "monitor_touch" and mode == "viewing" and event[2] == wall then
+      -- The monitor is showing the host's desktop, so a touch on it is a
+      -- click on the host, at exactly the coordinates shown.
+      pcall(rednet.send, hostId, {
+        kind = "input",
+        event = { "mouse_click", 1, event[3], event[4] },
+      }, PROTOCOL)
 
     elseif name == "term_resize" then
       draw()

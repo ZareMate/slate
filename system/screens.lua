@@ -25,6 +25,11 @@ local screens = {}
 
 local active = {}          -- [name] = wrapped monitor, mirroring
 local fresh = {}           -- monitors needing one full paint
+local claimed = {}         -- monitors lent to an app to draw on itself
+
+-- Forward declared: screens.claim() is defined above the body of this,
+-- and a plain call there would look for a global that does not exist.
+local prepare
 local primaryName = nil    -- the monitor acting as the display, if any
 local primaryTerm = nil
 
@@ -40,8 +45,79 @@ function screens.isOn(name)
   return active[name] ~= nil
 end
 
+-- The desktop only owns a monitor it is painting. One lent to an app is not
+-- the desktop's: its touches belong to that app, not to the window stack.
 function screens.owns(name)
+  if claimed[name] then return false end
   return active[name] ~= nil or primaryName == name
+end
+
+--------------------------------------------------------------------------
+-- monitors lent to an app
+--
+-- Screen sharing needs somewhere to put a frame that is not the desktop, at
+-- the monitor's own size rather than clipped into a window. An app claims a
+-- monitor, writes rows to it, and gives it back when it is done.
+--------------------------------------------------------------------------
+
+function screens.claim(name)
+  if not isType(name, "monitor") then return false, "not a monitor" end
+  if claimed[name] then return false, "already in use" end
+  -- A shared monitor cannot also be showing the desktop.
+  screens.disable(name)
+  if primaryName == name then screens.clearPrimary() end
+  local monitor = peripheral.wrap(name)
+  if not monitor then return false, "could not wrap " .. name end
+  prepare(monitor)
+  claimed[name] = monitor
+  return true
+end
+
+function screens.release(name)
+  local monitor = claimed[name]
+  if not monitor then return end
+  claimed[name] = nil
+  pcall(function()
+    monitor.setBackgroundColour(colours.black)
+    monitor.clear()
+    monitor.setCursorPos(1, 1)
+  end)
+end
+
+function screens.isClaimed(name)
+  return claimed[name] ~= nil
+end
+
+function screens.claimedSize(name)
+  local monitor = claimed[name]
+  if not monitor then return nil end
+  local ok, w, h = pcall(monitor.getSize)
+  if not ok then return nil end
+  return w, h
+end
+
+-- One row onto a claimed monitor. Returns false once the monitor is gone, so
+-- the caller can stop rather than erroring every frame.
+function screens.blitRow(name, y, text, fg, bg)
+  local monitor = claimed[name]
+  if not monitor then return false end
+  local ok = pcall(function()
+    local w, h = monitor.getSize()
+    if y < 1 or y > h then return end
+    monitor.setCursorPos(1, y)
+    monitor.blit(text:sub(1, w), fg:sub(1, w), bg:sub(1, w))
+  end)
+  if not ok then claimed[name] = nil end
+  return ok
+end
+
+function screens.clearClaimed(name)
+  local monitor = claimed[name]
+  if not monitor then return end
+  pcall(function()
+    monitor.setBackgroundColour(colours.black)
+    monitor.clear()
+  end)
 end
 
 function screens.count()
@@ -66,7 +142,7 @@ function screens.sizeOf(name)
   return w, h
 end
 
-local function prepare(monitor)
+function prepare(monitor)
   -- The smallest text scale gives the most characters, which is the whole
   -- point of putting the desktop on a bigger screen.
   pcall(monitor.setTextScale, 0.5)
@@ -159,6 +235,7 @@ end
 
 function screens.forget(name)
   active[name] = nil
+  claimed[name] = nil
   if primaryName == name then
     primaryName, primaryTerm = nil, nil
   end
