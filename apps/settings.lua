@@ -167,11 +167,22 @@ function app.run(ctx)
         list[#list + 1] = {
           kind = "item",
           label = ui.clip(monitor, 12) .. " " .. size,
-          value = screens.isOn(monitor) and "Mirrored" or "Off",
+          value = ({ off = "Off", mirror = "Mirror", display = "Display" })
+            [screens.modeOf(monitor)],
           act = function()
-            screens.toggle(monitor)
+            local mode = screens.cycle(monitor)
+            -- Display mode changes how big the desktop is, so the whole
+            -- layout has to be rebuilt, not just repainted.
+            if mode == "display" or screens.modeOf(monitor) ~= "display" then
+              local kernel = use("system/kernel")
+              if kernel.relayout then kernel.relayout() end
+            end
             ctx.redraw()
-            say(screens.isOn(monitor) and "Mirroring to " .. monitor or "Stopped mirroring")
+            say(({
+              off = "Monitor off",
+              mirror = "Mirroring to " .. monitor,
+              display = "Desktop moved to " .. monitor,
+            })[mode])
           end,
         }
       end

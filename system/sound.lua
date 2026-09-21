@@ -31,4 +31,23 @@ function sound.beep(pitch)
   return sound.note("bit", 1, pitch or 12)
 end
 
+-- Short recognisable jingles. Rising = something arrived, falling = it left.
+local CHIMES = {
+  connect = { { "pling", 12 }, { "pling", 16 }, { "pling", 19 }, { "pling", 24 } },
+  disconnect = { { "bass", 14 }, { "bass", 10 }, { "bass", 6 } },
+  alert = { { "bit", 18 }, { "bit", 14 } },
+}
+
+-- Runs for about a third of a second. It yields between notes, so events keep
+-- queueing while it plays and are handled the moment it finishes.
+function sound.chime(kind)
+  local notes = CHIMES[kind]
+  if not notes or not sound.available() then return false end
+  for index, entry in ipairs(notes) do
+    sound.note(entry[1], 1, entry[2])
+    if index < #notes then sleep(0.09) end
+  end
+  return true
+end
+
 return sound

@@ -19,11 +19,19 @@ local screens = use("system/screens")
 local bootseq = use("system/bootseq")
 local notify = use("system/notify")
 local compat = use("system/compat")
+local peripherals = use("system/peripherals")
+local sound = use("system/sound")
 
 local kernel = {}
 
 local native = term.native()
-local W, H = native.getSize()
+
+-- The desktop is built at the size of whatever it is being shown on: the
+-- computer's own terminal normally, or a monitor running in display mode.
+local function nativeSize() return native.getSize() end
+local function displaySize() return screens.displaySize(nativeSize) end
+
+local W, H = displaySize()
 local DESK_H = H - 1          -- the bottom row belongs to the taskbar
 
 local processes = {}          -- back to front; the last entry has focus
@@ -47,6 +55,7 @@ local drag = nil              -- { proc, offset } while a title bar is held
 local ctrlDown = false
 local root = ""               -- where Slate is installed; set by startup.lua
 local pendingPower = nil      -- "reboot" or "shutdown", run after the loop ends
+local modems = {}             -- modems seen attached, so detach can be told apart
 
 kernel.launcher = nil         -- set by the desktop so apps can open apps
 
@@ -341,13 +350,27 @@ function kernel.draw()
   -- Present: the real terminal always, then any mirrors. Presenting to
   -- term.native() is unconditional, which is what keeps Slate a no-screen-
   -- required OS however many monitors are attached.
-  for y = 1, H do
-    local text, fg, bg = screen.getLine(y)
-    native.setCursorPos(1, y)
-    native.blit(text, fg, bg)
+  local onMonitor = screens.primary() ~= nil
+  if not onMonitor then
+    for y = 1, H do
+      local text, fg, bg = screen.getLine(y)
+      native.setCursorPos(1, y)
+      native.blit(text, fg, bg)
+    end
   end
-  if screens.count() > 0 then
+  if onMonitor or screens.count() > 0 then
     screens.presentFrame(H, function(y) return screen.getLine(y) end)
+  end
+  if onMonitor then
+    -- The computer itself cannot show a frame built for a bigger screen, so
+    -- it says where the desktop went rather than drawing a clipped mess.
+    local nw, nh = nativeSize()
+    native.setBackgroundColour(colours.black)
+    native.clear()
+    ui.centre(native, math.floor(nh / 2), "Desktop on " .. tostring(screens.primaryName()),
+      theme.colour.accent, colours.black, 1, nw)
+    ui.centre(native, math.floor(nh / 2) + 1, "keyboard still works here",
+      colours.grey, colours.black, 1, nw)
   end
 
   -- The real cursor follows the focused app's window, so typing in a nested
@@ -450,6 +473,12 @@ local function handleKey(event)
     if key == keys.w then if focus then kernel.close(focus) end; return end
     if key == keys.e then desktop.toggleMenu(); return end
     if key == keys.f then if focus then kernel.toggleFullscreen(focus) end; return end
+    for slot = 1, 9 do
+      if key == keys[tostring(slot)] then
+        desktop.launchPinned(slot)
+        return
+      end
+    end
   end
 
   if desktop.overlayKey(event) then return end
@@ -474,6 +503,28 @@ function kernel.setRoot(path)
   root = path or ""
 end
 
+-- Called when a monitor becomes (or stops being) the display, and when one
+-- is resized. Everything that depends on the size is rebuilt, and every app
+-- is told its terminal changed so it can lay itself out again.
+function kernel.relayout()
+  W, H = displaySize()
+  DESK_H = H - 1
+  background = window.create(native, 1, 1, W, DESK_H, false)
+  screen = window.create(native, 1, 1, W, H, false)
+  for _, proc in ipairs(processes) do
+    if proc.full then
+      proc.x, proc.y, proc.w, proc.h = 1, 1, W, DESK_H
+    end
+    proc.w = math.min(proc.w, W)
+    proc.h = math.min(proc.h, DESK_H)
+    proc.frame.reposition(1, 1, proc.w, proc.h)
+    proc.content.reposition(1, 2, proc.w, proc.h - 1)
+    clamp(proc)
+    kernel.resume(proc, { "term_resize", n = 1 })
+  end
+  dirty = true
+end
+
 function kernel.stop()
   alive = false
 end
@@ -494,8 +545,7 @@ function kernel.run()
   if not window.create(native, 1, 1, 1, 1, false).getLine then
     error("Slate needs CC:Tweaked (window.getLine is missing)", 0)
   end
-  background = window.create(native, 1, 1, W, DESK_H, false)
-  screen = window.create(native, 1, 1, W, H, false)
+  kernel.relayout()
 
   while alive do
     if dirty then kernel.draw() end
@@ -530,14 +580,41 @@ function kernel.run()
       end
 
     elseif name == "monitor_resize" then
-      if screens.owns(event[2]) then
+      if screens.primaryName() == event[2] then
+        kernel.relayout()
+      elseif screens.owns(event[2]) then
         screens.clearAll()
         dirty = true
       end
 
+    elseif name == "peripheral" then
+      -- Something was attached. A modem gets a chime, because plugging in
+      -- wireless is the moment worth hearing.
+      local attached = event[2]
+      if peripherals.isType(attached, "modem") then
+        modems[attached] = true
+        sound.chime("connect")
+        desktop.notify("Wireless connected")
+        notify.push(nil, "Modem attached: " .. tostring(attached))
+      end
+      dirty = true
+      broadcast(event)
+
     elseif name == "peripheral_detach" then
-      -- A wrapped monitor that has been broken off would throw on next use.
-      screens.forget(event[2])
+      local gone = event[2]
+      -- The peripheral is already gone, so its type cannot be asked for -
+      -- that is why the modems seen at attach time are remembered.
+      if modems[gone] then
+        modems[gone] = nil
+        sound.chime("disconnect")
+        desktop.notify("Wireless disconnected")
+      end
+      if screens.primaryName() == gone then
+        screens.forget(gone)
+        kernel.relayout()          -- the desktop comes home to the computer
+      else
+        screens.forget(gone)
+      end
       dirty = true
       broadcast(event)
     elseif name == "key" or name == "key_up" or name == "char" or name == "paste" then

@@ -8,7 +8,11 @@
       "w": 40,
       "h": 14,
       "api": 1,
-      "icon": [" 00000 ", "0  0  0", " 00000 "]
+      "icon": [
+        " 00000 ",
+        "0  0  0",
+        " 00000 "
+      ]
     },
     {
       "id": "weather",
@@ -18,7 +22,11 @@
       "w": 38,
       "h": 14,
       "api": 1,
-      "icon": [" 00000 ", "0000000", " 3 3 3 "]
+      "icon": [
+        " 00000 ",
+        "0000000",
+        " 3 3 3 "
+      ]
     },
     {
       "id": "calc",
@@ -28,7 +36,11 @@
       "w": 36,
       "h": 14,
       "api": 1,
-      "icon": ["7777777", "70 0 07", "7777777"]
+      "icon": [
+        "7777777",
+        "70 0 07",
+        "7777777"
+      ]
     },
     {
       "id": "notes",
@@ -38,7 +50,11 @@
       "w": 40,
       "h": 14,
       "api": 2,
-      "icon": ["0000000", "0888880", "0088000"]
+      "icon": [
+        "0000000",
+        "0888880",
+        "0088000"
+      ]
     },
     {
       "id": "paint",
@@ -48,7 +64,11 @@
       "w": 46,
       "h": 16,
       "api": 1,
-      "icon": ["e14d9b ", "  000  ", "  000  "]
+      "icon": [
+        "e14d9b ",
+        "  000  ",
+        "  000  "
+      ]
     },
     {
       "id": "tunes",
@@ -58,7 +78,84 @@
       "w": 44,
       "h": 15,
       "api": 1,
-      "icon": ["5 d 9 b", "5 d 9 b", "5 d 9 b"]
+      "icon": [
+        "5 d 9 b",
+        "5 d 9 b",
+        "5 d 9 b"
+      ]
+    },
+    {
+      "id": "music",
+      "title": "Music",
+      "file": "music.lua",
+      "blurb": "YouTube audio through a speaker. Search and queue.",
+      "w": 44,
+      "h": 16,
+      "api": 2,
+      "single": true,
+      "icon": [
+        "  eeee ",
+        "  e    ",
+        "ee e   "
+      ]
+    },
+    {
+      "id": "messenger",
+      "title": "Messenger",
+      "file": "messenger.lua",
+      "blurb": "Message other computers over rednet.",
+      "w": 42,
+      "h": 15,
+      "api": 3,
+      "single": true,
+      "icon": [
+        "2222222",
+        "2222222",
+        " 2     "
+      ]
+    },
+    {
+      "id": "browser",
+      "title": "Furnace",
+      "file": "browser.lua",
+      "blurb": "Text web browser with search.",
+      "w": 46,
+      "h": 16,
+      "api": 2,
+      "icon": [
+        " eeeee ",
+        "e11111e",
+        " e444e "
+      ]
+    },
+    {
+      "id": "freeram",
+      "title": "FreeRAM.exe",
+      "file": "freeram.lua",
+      "blurb": "Frees up RAM. Totally safe. Trust me.",
+      "w": 38,
+      "h": 12,
+      "api": 3,
+      "icon": [
+        " 55555 ",
+        "5000005",
+        " 55555 "
+      ]
+    },
+    {
+      "id": "zare",
+      "title": "Zare AV",
+      "file": "zare.lua",
+      "blurb": "Antivirus. Removes Trojan.FreeRAM.",
+      "w": 38,
+      "h": 13,
+      "api": 2,
+      "single": true,
+      "icon": [
+        " ddddd ",
+        "d00000d",
+        " dd0dd "
+      ]
     }
   ]
 }

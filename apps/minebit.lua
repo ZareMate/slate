@@ -28,8 +28,23 @@ end
 
 function app.run(ctx)
   local index = 1
+  local scroll = 0
   local notice = nil
   local noticeUntil = 0
+
+  local function visibleRows()
+    local _, height = term.getSize()
+    return math.max(1, math.floor((height - 3) / 3))
+  end
+
+  -- Without this the list drew from a fixed offset and anything past the
+  -- first page could never be reached.
+  local function follow()
+    local rows = visibleRows()
+    if index < scroll + 1 then scroll = index - 1 end
+    if index > scroll + rows then scroll = index - rows end
+    scroll = ui.clampScroll(scroll, #catalogue, rows)
+  end
 
   local function draw()
     local width, height = term.getSize()
@@ -37,9 +52,13 @@ function app.run(ctx)
     term.clear()
     ui.row(term, 1, 1, width, " MINEBIT", theme.colour.accentText, theme.colour.accent)
 
+    follow()
+    local rows = visibleRows()
     local y = 3
-    for position, entry in ipairs(catalogue) do
-      if y > height - 2 then break end
+    for offset = 0, rows - 1 do
+      local position = scroll + offset + 1
+      local entry = catalogue[position]
+      if not entry then break end
       local on = (position == index)
       local best = highScore(entry.id)
       local right = best > 0 and ("best " .. best) or ""
@@ -55,6 +74,9 @@ function app.run(ctx)
         theme.colour.mutedText, theme.colour.window)
       y = y + 3
     end
+
+    ui.scrollbar(term, width, 3, rows * 3, #catalogue * 3, scroll * 3,
+      theme.colour.muted, theme.colour.accent)
 
     if notice and os.clock() < noticeUntil then
       ui.row(term, 1, height, width, " " .. notice, colours.white, theme.colour.ok)
@@ -105,8 +127,13 @@ function app.run(ctx)
       end
       draw()
 
+    elseif event == "mouse_scroll" then
+      scroll = ui.clampScroll(scroll + a, #catalogue, visibleRows())
+      index = math.max(scroll + 1, math.min(scroll + visibleRows(), index))
+      draw()
+
     elseif event == "mouse_click" then
-      local clicked = math.floor((y - 3) / 3) + 1
+      local clicked = scroll + math.floor((y - 3) / 3) + 1
       if catalogue[clicked] then
         if clicked == index then play(catalogue[clicked]) else index = clicked end
       end

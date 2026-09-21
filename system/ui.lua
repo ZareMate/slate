@@ -91,6 +91,43 @@ function ui.heading(target, x, y, w, text, fg, bg, accent)
   ui.fill(target, x + 1, y + 1, math.min(w - 2, #text + 1), 1, accent)
 end
 
+-- A real button: padded label, its own colours, and it hands back the rect so
+-- the caller hit-tests the same geometry it drew instead of guessing.
+-- opts = { fg, bg, disabled, active, key }
+function ui.button(target, x, y, label, opts)
+  opts = opts or {}
+  local text = " " .. label .. " "
+  local bg = opts.bg or colours.lightGrey
+  local fg = opts.fg or colours.black
+  if opts.disabled then bg, fg = colours.grey, colours.lightGrey end
+  if opts.active then bg, fg = opts.activeBg or colours.white, colours.black end
+
+  ui.text(target, x, y, text, fg, bg)
+  return { x = x, y = y, w = #text, h = 1, disabled = opts.disabled }
+end
+
+-- Lays out buttons left to right from x, returning their rects by name.
+function ui.buttonRow(target, x, y, list)
+  local rects = {}
+  local at = x
+  for _, entry in ipairs(list) do
+    rects[entry.name] = ui.button(target, at, y, entry.label, entry)
+    at = at + #entry.label + 3
+  end
+  return rects
+end
+
+function ui.inButton(rect, mx, my)
+  return rect and not rect.disabled and ui.hit(mx, my, rect.x, rect.y, rect.w, rect.h)
+end
+
+-- Clamps a scroll offset so a list can never show past its own end. Returns
+-- the corrected offset; every scrolling view in Slate goes through this.
+function ui.clampScroll(offset, total, visible)
+  local maxOffset = math.max(0, total - visible)
+  return math.max(0, math.min(maxOffset, offset)), maxOffset
+end
+
 -- A thin rule instead of a solid divider.
 function ui.rule(target, x, y, w, colour, bg)
   ui.text(target, x, y, ("-"):rep(w), colour, bg)

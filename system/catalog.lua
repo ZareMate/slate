@@ -18,21 +18,33 @@ local installed
 ---@type table Desktop icon order as a list of app ids; filled by load().
 local order
 
+---@type table Hotbar slots as a list of app ids; filled by load().
+local pinned
+
+-- What a fresh desktop starts with on the hotbar.
+local DEFAULT_PINS = { "files", "terminal", "store" }
+
 local function load()
   if installed then return end
-  installed, order = {}, {}
+  installed, order, pinned = {}, {}, {}
   pcall(function()
     local saved = settings.get("slate.installed")
     if type(saved) == "table" then installed = saved end
     local savedOrder = settings.get("slate.iconorder")
     if type(savedOrder) == "table" then order = savedOrder end
+    local savedPins = settings.get("slate.pinned")
+    if type(savedPins) == "table" then pinned = savedPins end
   end)
+  if #pinned == 0 then
+    for _, id in ipairs(DEFAULT_PINS) do pinned[#pinned + 1] = id end
+  end
 end
 
 local function persist()
   pcall(function()
     settings.set("slate.installed", installed)
     settings.set("slate.iconorder", order)
+    settings.set("slate.pinned", pinned)
     settings.save()
   end)
 end
@@ -131,6 +143,48 @@ end
 --------------------------------------------------------------------------
 -- desktop icon order
 --------------------------------------------------------------------------
+
+--------------------------------------------------------------------------
+-- hotbar
+--------------------------------------------------------------------------
+
+-- Only pins that still resolve to a real app; an uninstalled app leaves no
+-- dead slot behind.
+function catalog.pinned()
+  load()
+  local out = {}
+  for _, id in ipairs(pinned) do
+    if catalog.byId(id) then out[#out + 1] = id end
+  end
+  return out
+end
+
+function catalog.isPinned(id)
+  for _, pin in ipairs(catalog.pinned()) do
+    if pin == id then return true end
+  end
+  return false
+end
+
+function catalog.pin(id)
+  load()
+  if catalog.isPinned(id) or #pinned >= 9 then return false end
+  pinned[#pinned + 1] = id
+  persist()
+  return true
+end
+
+function catalog.unpin(id)
+  load()
+  for index, pin in ipairs(pinned) do
+    if pin == id then
+      table.remove(pinned, index)
+      persist()
+      return true
+    end
+  end
+  return false
+end
 
 function catalog.setOrder(ids)
   load()

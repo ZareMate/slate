@@ -1,21 +1,16 @@
 {
-  "version": "1.6",
+  "version": "1.8",
   "files": [
-    "apps/browser.lua",
     "apps/console.lua",
     "apps/devices.lua",
     "apps/editor.lua",
     "apps/files.lua",
-    "apps/freeram.lua",
-    "apps/messenger.lua",
     "apps/minebit.lua",
-    "apps/music.lua",
     "apps/settings.lua",
     "apps/store.lua",
     "apps/tasks.lua",
     "apps/terminal.lua",
     "apps/updater.lua",
-    "apps/zare.lua",
     "games/blocks.lua",
     "games/mines.lua",
     "games/pong.lua",
@@ -40,5 +35,5 @@
     "system/ui.lua",
     "system/update.lua"
   ],
-  "notes": "Three more games, developer mode with Lua console, and six store apps."
+  "notes": "Working hotbar with pinning, store scrolling fixed, monitor display mode, wifi chime."
 }

@@ -35,6 +35,7 @@ local clockTimer
 local status
 local statusUntil = 0
 local dragging = nil               -- { id, slot, mx, my, moved } while held
+local hotbar = {}                  -- slot rects, rebuilt each taskbar draw
 
 local MENU_POWER = {
   { label = "Shut down", action = "shutdown" },
@@ -146,6 +147,21 @@ end
 
 local BLANK_ICON = { "8888888", "8000008", "8888888" }
 
+-- The colour a hotbar chip should be: whatever the icon uses most.
+local function iconColour(app)
+  local tally, best, bestCount = {}, "0", 0
+  for _, line in ipairs(app.icon or BLANK_ICON) do
+    for index = 1, #line do
+      local cell = line:sub(index, index)
+      if cell ~= " " then
+        tally[cell] = (tally[cell] or 0) + 1
+        if tally[cell] > bestCount then best, bestCount = cell, tally[cell] end
+      end
+    end
+  end
+  return 2 ^ tonumber(best, 16)
+end
+
 function desktop.drawBackground(win)
   local W, _, DESK_H = kernel.size()
   ui.fill(win, 1, 1, W, DESK_H, theme.colour.desktop)
@@ -203,7 +219,34 @@ function desktop.drawTaskbar(target)
     return
   end
 
+  -- Hotbar: pinned apps, each a numbered chip. Click it or press Ctrl+n.
+  hotbar = {}
   local x = 5
+  for slot, id in ipairs(catalog.pinned()) do
+    local app = catalog.byId(id)
+    if not app then break end
+    if x + 2 > clockX - 1 then break end
+    local running = false
+    for _, proc in ipairs(kernel.list()) do
+      if proc.appId == id then running = true break end
+    end
+    local colour = iconColour(app)
+    ui.fill(target, x, H, 2, 1, colour)
+    ui.text(target, x, H, tostring(slot),
+      colour == colours.black and colours.white or colours.black, colour)
+    -- A dot marks an app that is already open, so the chip doubles as a
+    -- "jump to it" rather than only a launcher.
+    ui.text(target, x + 1, H, running and ui.glyph.bullet or " ",
+      colour == colours.black and colours.white or colours.black, colour)
+    hotbar[#hotbar + 1] = { id = id, x = x, w = 2 }
+    x = x + 3
+  end
+
+  if #hotbar > 0 then
+    ui.text(target, x - 1, H, "|", theme.colour.barHot, theme.colour.bar)
+    x = x + 1
+  end
+
   for _, proc in ipairs(kernel.list()) do
     local width = 11
     if x + width > clockX - 1 then break end
@@ -353,8 +396,43 @@ end
 --------------------------------------------------------------------------
 
 function desktop.taskbarClick(name, button, mx, my)
+  -- A desktop icon dropped on the taskbar gets pinned there.
+  if dragging then
+    if name == "mouse_drag" then
+      dragging.mx, dragging.my = mx, my
+      dragging.moved = true
+      kernel.invalidate()
+      return
+    elseif name == "mouse_up" then
+      local held = dragging
+      dragging = nil
+      if held.moved then
+        if catalog.pin(held.id) then
+          desktop.notify("Pinned " .. held.id)
+        else
+          desktop.notify("Already pinned, or hotbar full")
+        end
+      end
+      kernel.invalidate()
+      return
+    end
+  end
+
   if name ~= "mouse_click" then return end
   if mx <= 3 then return desktop.toggleMenu() end
+
+  for _, chip in ipairs(hotbar) do
+    if mx >= chip.x and mx < chip.x + chip.w then
+      if button == 2 then
+        catalog.unpin(chip.id)
+        desktop.notify("Unpinned " .. chip.id)
+      else
+        desktop.launch(chip.id)
+      end
+      kernel.invalidate()
+      return
+    end
+  end
   for _, proc in ipairs(kernel.list()) do
     if proc.taskX and mx >= proc.taskX and mx < proc.taskX + proc.taskW then
       if kernel.focused() == proc and not proc.minimised then
@@ -398,6 +476,12 @@ function desktop.desktopClick(name, button, mx, my)
     end
     kernel.invalidate()
   end
+end
+
+-- Ctrl+1..9 from anywhere, handled by the kernel's shortcut layer.
+function desktop.launchPinned(slot)
+  local pins = catalog.pinned()
+  if pins[slot] then desktop.launch(pins[slot]) end
 end
 
 function desktop.desktopKey(event)
