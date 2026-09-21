@@ -44,5 +44,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Store apps are catalog-only until installed. Optional app code is downloaded on demand."
+  "notes": "Store catalog is distributed with Slate; store app payloads are fetched only when installed."
 }
