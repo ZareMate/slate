@@ -172,6 +172,10 @@ function messenger.init(path)
   announceTimer = os.startTimer(1)
 end
 
+function messenger.announce()
+  announce()
+end
+
 function messenger.shutdown()
   if announceTimer then
     pcall(os.cancelTimer, announceTimer)
