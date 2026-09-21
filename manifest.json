@@ -1,5 +1,5 @@
 {
-  "version": "1.13",
+  "version": "1.14",
   "files": [
     "apps/console.lua",
     "apps/devices.lua",
@@ -37,5 +37,5 @@
     "system/update.lua",
     "system/wallpaper.lua"
   ],
-  "notes": "Fixes the crash on startup: update.applySilently was nested inside update.auto()."
+  "notes": "Files shows free space."
 }

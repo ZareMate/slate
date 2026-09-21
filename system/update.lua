@@ -15,7 +15,7 @@
 
 local update = {}
 
-update.VERSION = "1.13"
+update.VERSION = "1.14"
 
 local MANIFEST = "manifest.json"
 

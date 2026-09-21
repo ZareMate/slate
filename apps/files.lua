@@ -123,7 +123,16 @@ function app.run(ctx, startDir)
     term.setBackgroundColour(theme.colour.window)
     term.clear()
 
-    ui.row(term, 1, 1, w, " " .. ui.clip(dir, w - 2),
+    -- Free space sits in the path bar, right aligned: it is the number you
+    -- want when you are deciding whether to delete something.
+    local free = ""
+    local okFree, bytes = pcall(fs.getFreeSpace, "/")
+    if okFree and type(bytes) == "number" then
+      free = bytes >= 1048576 and string.format("%.1fM free", bytes / 1048576)
+        or string.format("%dK free", math.floor(bytes / 1024))
+    end
+    local room = math.max(1, w - #free - 3)
+    ui.row(term, 1, 1, w, " " .. ui.pad(ui.clip(dir, room), room) .. " " .. free,
       theme.colour.accentText, theme.colour.accent)
 
     if listError then
