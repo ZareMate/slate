@@ -59,6 +59,7 @@ local modems = {}             -- modems seen attached, so detach can be told apa
 local painted = {}            -- last row presented, so only changes are redrawn
 local watchers = {}           -- frame listeners (the remote viewer)
 local monitorNotice = false   -- whether the "desktop moved" notice is showing
+local lastInput = 0           -- os.clock() of the last key or click
 
 kernel.launcher = nil         -- set by the desktop so apps can open apps
 
@@ -460,6 +461,7 @@ end
 -- never start a window drag - the window would stick to every later touch.
 local function handleMouse(event, fromTouch)
   local name, button, mx, my = event[1], event[2], event[3], event[4]
+  lastInput = os.clock()
 
   if drag then
     if name == "mouse_drag" then
@@ -522,6 +524,7 @@ end
 
 local function handleKey(event)
   local name, key = event[1], event[2]
+  lastInput = os.clock()
 
   if name == "key" then
     if key == keys.leftCtrl or key == keys.rightCtrl then ctrlDown = true end
@@ -570,6 +573,13 @@ end
 -- into the install, not into the root of the computer.
 function kernel.root()
   return root
+end
+
+-- Seconds since the last key or click. An unattended restart waits for this,
+-- because rebooting a computer somebody is using is not an update, it is a
+-- crash with extra steps.
+function kernel.idleFor()
+  return os.clock() - lastInput
 end
 
 -- Frame watchers receive (changedRows, getLine, W, H) after every paint.

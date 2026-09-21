@@ -199,6 +199,21 @@ function app.run(ctx)
           })[next_])
         end,
       },
+      {
+        label = "Restart",
+        value = ({ idle = "When idle", ask = "Ask me", never = "Never" })
+          [update.restartMode()],
+        act = function()
+          local current = update.restartMode()
+          local next_ = ({ idle = "ask", ask = "never", never = "idle" })[current]
+          update.setRestartMode(next_)
+          say(({
+            idle = "Restarts itself once left alone",
+            ask = "Updates install, you restart",
+            never = "Never restarts on its own",
+          })[next_])
+        end,
+      },
       { label = "Check now", value = "", act = function() ctx.launch("updater") end },
       {
         label = "Source", value = update.isDefaultUrl() and "default" or "custom",

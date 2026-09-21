@@ -37,6 +37,11 @@ local clockTimer
 local animTimer
 local updateTimer
 local updatePending
+local restartAt = nil              -- os.clock() when the countdown fires
+
+local CHECK_EVERY = 1800           -- re-check every half hour
+local IDLE_BEFORE_RESTART = 120    -- left alone this long before restarting
+local COUNTDOWN = 10               -- visible warning before it happens
 local status
 local statusUntil = 0
 local dragging = nil               -- { id, slot, mx, my, moved } while held
@@ -557,11 +562,44 @@ function desktop.checkForUpdate()
   local version, problem = update.applySilently(kernel.root and kernel.root() or "")
   if version then
     updatePending = version
-    notify.push("updater", "Updated to Slate " .. version .. " - restart to finish")
+    notify.push("updater", "Updated to Slate " .. version)
     desktop.notify("Updated to " .. version)
   elseif problem then
     notify.push("updater", "Update failed: " .. tostring(problem))
   end
+end
+
+-- Windows-style: the restart happens on its own, but only when the computer
+-- has been left alone AND nothing is open. A reboot that eats what somebody
+-- was doing is worse than an out-of-date OS.
+local function considerRestart()
+  if not updatePending then return end
+
+  local update = loadModule("system/update")
+  local mode = update.restartMode()
+  if mode == "never" then return end
+
+  if restartAt then
+    -- Any input at all cancels it; you should never lose a race with your
+    -- own computer.
+    if kernel.idleFor() < 1 then
+      restartAt = nil
+      desktop.notify("Restart cancelled")
+      return
+    end
+    local left = math.ceil(restartAt - os.clock())
+    if left <= 0 then
+      kernel.power("reboot")
+    else
+      desktop.notify("Restarting for update in " .. left .. "s - press anything to stop")
+    end
+    return
+  end
+
+  if mode == "ask" then return end
+  if #kernel.list() > 0 then return end
+  if kernel.idleFor() < IDLE_BEFORE_RESTART then return end
+  restartAt = os.clock() + COUNTDOWN
 end
 
 function desktop.updatePending()
@@ -616,10 +654,11 @@ function desktop.systemEvent(event)
   if event[1] == "timer" and event[2] == clockTimer then
     clockTimer = os.startTimer(1)
     infection.tick(spawnPopup)
+    considerRestart()
     kernel.invalidate()
 
   elseif event[1] == "timer" and event[2] == updateTimer then
-    updateTimer = nil
+    updateTimer = os.startTimer(CHECK_EVERY)
     desktop.checkForUpdate()
 
   elseif event[1] == "timer" and event[2] == animTimer then

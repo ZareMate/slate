@@ -15,7 +15,7 @@
 
 local update = {}
 
-update.VERSION = "1.21"
+update.VERSION = "1.22"
 
 local MANIFEST = "manifest.json"
 
@@ -70,6 +70,23 @@ end
 
 function update.auto()
   return update.mode() ~= "off"
+end
+
+-- "idle" | "ask" | "never". Windows-style is "idle": it restarts by itself,
+-- but only once the computer has been left alone.
+function update.restartMode()
+  local ok, value = pcall(settings.get, "slate.update.restart")
+  if ok and (value == "idle" or value == "ask" or value == "never") then
+    return value
+  end
+  return "idle"
+end
+
+function update.setRestartMode(mode)
+  pcall(function()
+    settings.set("slate.update.restart", mode)
+    settings.save()
+  end)
 end
 
 function update.setAuto(on)

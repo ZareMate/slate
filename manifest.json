@@ -1,5 +1,5 @@
 {
-  "version": "1.21",
+  "version": "1.22",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -44,5 +44,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Cloud storage manager, and pages that show remote state refresh themselves."
+  "notes": "Updates now install and restart on their own once the computer is idle."
 }
