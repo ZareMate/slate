@@ -257,7 +257,7 @@ function app.run(ctx)
       if state == "diagnostics" then
         if key == keys.backspace then state = "peers"
         elseif key == keys.p then
-          messenger.send(BROADCAST, "[ping]")
+          messenger.announce()
         end
         draw()
 
@@ -270,7 +270,7 @@ function app.run(ctx)
           index = math.max(1, index - 1)
           draw()
         elseif key == keys.r then
-          messenger.send(BROADCAST, "[hello]")
+          messenger.announce()
           draw()
         elseif key == keys.d then
           state = "diagnostics"
