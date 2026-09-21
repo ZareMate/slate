@@ -35,15 +35,31 @@ end
 local function splash()
   local w, h = term.getSize()
   term.setBackgroundColour(colours.black)
-  term.setTextColour(colours.cyan)
   term.clear()
-  local title = "Slate"
-  term.setCursorPos(math.floor((w - #title) / 2) + 1, math.floor(h / 2))
+
+  -- A ring, drawn with the same aspect correction the rest of the UI uses,
+  -- so the logo is a circle and not an egg.
+  local cx, cy = math.floor(w / 2), math.floor(h / 2) - 1
+  for dy = -2, 2 do
+    local outer = math.floor(math.sqrt(math.max(0, 4 - dy * dy)) * 1.8 + 0.5)
+    local inner = math.floor(math.sqrt(math.max(0, 1 - dy * dy)) * 1.8 + 0.5)
+    term.setBackgroundColour(colours.cyan)
+    if math.abs(dy) >= 1 then
+      term.setCursorPos(cx - outer, cy + dy)
+      term.write((" "):rep(outer * 2 + 1))
+    else
+      term.setCursorPos(cx - outer, cy + dy)
+      term.write((" "):rep(math.max(0, outer - inner)))
+      term.setCursorPos(cx + inner + 1, cy + dy)
+      term.write((" "):rep(math.max(0, outer - inner)))
+    end
+  end
+
+  term.setBackgroundColour(colours.black)
+  term.setTextColour(colours.cyan)
+  local title = "S L A T E"
+  term.setCursorPos(math.floor((w - #title) / 2) + 1, cy + 4)
   term.write(title)
-  term.setTextColour(colours.grey)
-  local note = "starting"
-  term.setCursorPos(math.floor((w - #note) / 2) + 1, math.floor(h / 2) + 1)
-  term.write(note)
 end
 
 local function boot()

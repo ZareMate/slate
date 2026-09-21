@@ -103,6 +103,12 @@ function ui.button(target, x, y, label, opts)
   if opts.active then bg, fg = opts.activeBg or colours.white, colours.black end
 
   ui.text(target, x, y, text, fg, bg)
+  -- Rounded ends: the first and last cell get the surrounding colour back,
+  -- so a button reads as a pill rather than a rectangle.
+  if opts.round ~= false and #text > 2 then
+    ui.text(target, x, y, "(", bg, opts.surround or colours.black)
+    ui.text(target, x + #text - 1, y, ")", bg, opts.surround or colours.black)
+  end
   return { x = x, y = y, w = #text, h = 1, disabled = opts.disabled }
 end
 
@@ -126,6 +132,76 @@ end
 function ui.clampScroll(offset, total, visible)
   local maxOffset = math.max(0, total - visible)
   return math.max(0, math.min(maxOffset, offset)), maxOffset
+end
+
+--------------------------------------------------------------------------
+-- circles and outlines
+--
+-- Terminal cells are about twice as tall as they are wide, so a circle drawn
+-- with equal radii comes out as a tall oval. Every round shape here scales x
+-- by ASPECT to compensate - that one constant is the difference between a
+-- circle and an egg.
+--------------------------------------------------------------------------
+
+local ASPECT = 1.8
+
+-- Hollow rectangle: a real outline rather than a filled block.
+function ui.outline(target, x, y, w, h, colour)
+  if w < 1 or h < 1 then return end
+  ui.fill(target, x, y, w, 1, colour)
+  ui.fill(target, x, y + h - 1, w, 1, colour)
+  ui.fill(target, x, y, 1, h, colour)
+  ui.fill(target, x + w - 1, y, 1, h, colour)
+end
+
+-- Filled rectangle with the four corner cells left alone, which reads as
+-- rounded at this resolution.
+function ui.roundRect(target, x, y, w, h, colour)
+  if w < 3 or h < 3 then return ui.fill(target, x, y, w, h, colour) end
+  ui.fill(target, x + 1, y, w - 2, 1, colour)
+  ui.fill(target, x, y + 1, w, h - 2, colour)
+  ui.fill(target, x + 1, y + h - 1, w - 2, 1, colour)
+end
+
+-- A panel: rounded fill plus an outline around it. The standard container
+-- for anything that floats above other content.
+function ui.panel(target, x, y, w, h, bg, border)
+  if border then ui.outline(target, x, y, w, h, border) end
+  ui.roundRect(target, x + (border and 1 or 0), y + (border and 1 or 0),
+    w - (border and 2 or 0), h - (border and 2 or 0), bg)
+end
+
+function ui.circle(target, cx, cy, r, colour)
+  if r < 1 then return ui.fill(target, cx, cy, 1, 1, colour) end
+  for dy = -r, r do
+    local span = math.floor(math.sqrt(math.max(0, r * r - dy * dy)) * ASPECT + 0.5)
+    if span > 0 or dy == 0 then
+      ui.fill(target, cx - span, cy + dy, span * 2 + 1, 1, colour)
+    end
+  end
+end
+
+-- Just the edge. Drawn per row so the aspect correction keeps it round.
+function ui.ring(target, cx, cy, r, colour)
+  if r < 1 then return end
+  for dy = -r, r do
+    local outer = math.floor(math.sqrt(math.max(0, r * r - dy * dy)) * ASPECT + 0.5)
+    local inner = math.floor(math.sqrt(math.max(0, (r - 1) * (r - 1) - dy * dy)) * ASPECT + 0.5)
+    if math.abs(dy) >= r - 1 then
+      ui.fill(target, cx - outer, cy + dy, outer * 2 + 1, 1, colour)
+    elseif outer > inner then
+      ui.fill(target, cx - outer, cy + dy, outer - inner, 1, colour)
+      ui.fill(target, cx + inner + 1, cy + dy, outer - inner, 1, colour)
+    end
+  end
+end
+
+-- A small round badge with a character in it - what an app chip looks like.
+function ui.badge(target, cx, cy, colour, glyph, fg)
+  ui.fill(target, cx - 1, cy, 3, 1, colour)
+  if glyph then
+    ui.text(target, cx, cy, glyph, fg or colours.white, colour)
+  end
 end
 
 -- A thin rule instead of a solid divider.

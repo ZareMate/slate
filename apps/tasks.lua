@@ -4,7 +4,13 @@
   figure. Lua's heap is shared by the kernel and every window at once, so a
   per-window "RAM" column would be invented. Instead this shows the real heap
   total for the computer, and per-process facts that are real: window size,
-  how long it has been open, and whether it is responding.
+  how long it has been open, and whether it is focused.
+
+  The storage scan is INCREMENTAL. An earlier version walked the whole disk in
+  one go inside the event loop, which froze the desktop and, on a big tree,
+  tripped CC's "too long without yielding" and killed the window. It now does
+  a slice of work per tick and yields between slices, so the OS stays alive
+  and the scan simply takes a moment.
 ]]
 
 local use = ...
@@ -13,6 +19,9 @@ local theme = use("system/theme")
 local kernel = use("system/kernel")
 
 local app = {}
+
+local SLICE = 40          -- directory entries per slice
+local MAX_ENTRIES = 3000  -- hard ceiling, so a huge tree still finishes
 
 local function heapKB()
   return math.floor(collectgarbage("count"))
@@ -24,88 +33,147 @@ local function bytes(value)
   return value .. "B"
 end
 
--- Walks a folder, but stops early: a deep tree on a slow server should not
--- freeze the window.
-local function sizeOf(path, budget)
-  local total = 0
-  local stack = { path }
-  while #stack > 0 and budget.count < budget.limit do
-    local current = table.remove(stack)
-    budget.count = budget.count + 1
-    local ok, list = pcall(fs.list, current)
-    if ok then
-      for _, name in ipairs(list) do
-        local child = fs.combine(current, name)
-        if fs.isDir(child) then
-          stack[#stack + 1] = child
-        else
-          local sized, size = pcall(fs.getSize, child)
-          if sized then total = total + size end
-        end
-      end
-    end
-  end
-  return total
-end
-
 function app.run(ctx)
   local view = "procs"          -- procs | storage
   local index = 1
+  local shown = {}              -- the process list as drawn, front window first
   local storage = nil
+  local scan = nil              -- in-progress scan state
   local notice, noticeUntil = nil, 0
+  local confirming = nil
 
   local function say(text)
     notice, noticeUntil = text, os.clock() + 3
   end
 
-  local function scanStorage()
-    local budget = { count = 0, limit = 400 }
-    local rows = {}
-    local ok, list = pcall(fs.list, "/")
+  ------------------------------------------------------------------
+  -- incremental storage scan
+  ------------------------------------------------------------------
+
+  local function beginScan()
+    local roots = {}
+    local ok, names = pcall(fs.list, "/")
     if ok then
-      for _, name in ipairs(list) do
+      for _, name in ipairs(names) do
         local path = "/" .. name
-        if not fs.isReadOnly(path) or name ~= "rom" then
-          local size = fs.isDir(path) and sizeOf(path, budget) or select(2, pcall(fs.getSize, path))
-          rows[#rows + 1] = { name = name, size = tonumber(size) or 0, dir = fs.isDir(path) }
+        -- Read-only mounts are the ROM and treasure disks: not your storage,
+        -- and enormous. Skipping them is the difference between a scan that
+        -- finishes and one that does not.
+        if not fs.isReadOnly(path) then
+          roots[#roots + 1] = { name = name, path = path, dir = fs.isDir(path) }
         end
       end
     end
-    table.sort(rows, function(a, b) return a.size > b.size end)
-    storage = { rows = rows, truncated = budget.count >= budget.limit }
+    scan = { roots = roots, at = 1, stack = {}, total = 0, seen = 0, rows = {} }
+    storage = nil
+  end
+
+  -- Returns true when there is still work left.
+  local function stepScan()
+    if not scan then return false end
+    local work = 0
+
+    while work < SLICE do
+      local current = scan.roots[scan.at]
+      if not current then
+        table.sort(scan.rows, function(a, b) return a.size > b.size end)
+        storage = { rows = scan.rows, truncated = scan.seen >= MAX_ENTRIES }
+        scan = nil
+        return false
+      end
+
+      if not current.dir then
+        local sized, size = pcall(fs.getSize, current.path)
+        scan.rows[#scan.rows + 1] = {
+          name = current.name, size = (sized and tonumber(size)) or 0, dir = false,
+        }
+        scan.at = scan.at + 1
+        scan.total = 0
+        work = work + 1
+      else
+        if #scan.stack == 0 and scan.total == 0 and not scan.started then
+          scan.stack = { current.path }
+          scan.started = true
+        end
+
+        if #scan.stack == 0 then
+          scan.rows[#scan.rows + 1] = { name = current.name, size = scan.total, dir = true }
+          scan.at = scan.at + 1
+          scan.total = 0
+          scan.started = false
+        else
+          local folder = table.remove(scan.stack)
+          local ok, names = pcall(fs.list, folder)
+          if ok then
+            for _, name in ipairs(names) do
+              scan.seen = scan.seen + 1
+              if scan.seen >= MAX_ENTRIES then break end
+              local child = fs.combine(folder, name)
+              if fs.isDir(child) then
+                scan.stack[#scan.stack + 1] = child
+              else
+                local sized, size = pcall(fs.getSize, child)
+                if sized then scan.total = scan.total + (tonumber(size) or 0) end
+              end
+              work = work + 1
+            end
+          end
+          if scan.seen >= MAX_ENTRIES then scan.stack = {} end
+        end
+      end
+    end
+    return true
+  end
+
+  ------------------------------------------------------------------
+  -- processes
+  ------------------------------------------------------------------
+
+  local function processList()
+    local list = kernel.list()
+    local out = {}
+    -- kernel.list() is back to front; the front window should be at the top.
+    for position = #list, 1, -1 do out[#out + 1] = list[position] end
+    return out
   end
 
   local function drawProcs()
     local width, height = term.getSize()
-    local list = kernel.list()
-    local rows = height - 4
-
-    if index > #list then index = math.max(1, #list) end
+    shown = processList()
+    if index > #shown then index = math.max(1, #shown) end
 
     term.setBackgroundColour(theme.colour.window)
     term.clear()
-    ui.row(term, 1, 1, width, " Tasks   " .. #list .. " running",
+    ui.row(term, 1, 1, width, " Tasks   " .. #shown .. " running",
       theme.colour.accentText, theme.colour.accent)
-
-    ui.row(term, 1, 2, width,
-      " heap " .. heapKB() .. "K   up " .. math.floor(os.clock()) .. "s",
+    ui.row(term, 1, 2, width, " heap " .. heapKB() .. "K   up " .. math.floor(os.clock()) .. "s",
       theme.colour.mutedText, theme.colour.muted)
 
-    if #list == 0 then
+    if #shown == 0 then
       ui.text(term, 2, 4, "Nothing running.", theme.colour.mutedText, theme.colour.window)
     end
 
-    for row = 1, math.min(rows, #list) do
-      -- kernel.list() is back-to-front; show the front window first.
-      local proc = list[#list - row + 1]
+    local rows = height - 4
+    for row = 1, math.min(rows, #shown) do
+      local proc = shown[row]
       local on = (row == index)
-      local tag = proc.minimised and "_" or (kernel.focused() == proc and ">" or " ")
+      local tag = proc.minimised and ui.glyph.down
+        or (kernel.focused() == proc and ui.glyph.right or " ")
       local size = proc.w .. "x" .. proc.h
       local room = math.max(1, width - #size - 6)
       ui.row(term, 1, row + 3, width,
         " " .. tag .. " " .. ui.pad(ui.clip(proc.title, room), room) .. " " .. size,
         on and theme.colour.accentText or theme.colour.windowText,
         on and theme.colour.accent or theme.colour.window)
+    end
+
+    if confirming then
+      ui.panel(term, 3, math.floor(height / 2) - 1, width - 6, 4,
+        theme.colour.muted, theme.colour.danger)
+      ui.centre(term, math.floor(height / 2), "Close " .. ui.clip(confirming.title, 14) .. "?",
+        colours.black, theme.colour.muted, 4, width - 8)
+      ui.centre(term, math.floor(height / 2) + 1, "Y / N",
+        theme.colour.mutedText, theme.colour.muted, 4, width - 8)
     end
 
     if notice and os.clock() < noticeUntil then
@@ -122,14 +190,19 @@ function app.run(ctx)
     term.clear()
     ui.row(term, 1, 1, width, " Storage", theme.colour.accentText, theme.colour.accent)
 
-    local free = select(2, pcall(fs.getFreeSpace, "/")) or 0
-    ui.row(term, 1, 2, width, " free " .. bytes(tonumber(free) or 0)
-      .. (storage and storage.truncated and "   (partial scan)" or ""),
+    local ok, free = pcall(fs.getFreeSpace, "/")
+    ui.row(term, 1, 2, width, " free " .. bytes((ok and tonumber(free)) or 0)
+      .. (storage and storage.truncated and "   (partial)" or ""),
       theme.colour.mutedText, theme.colour.muted)
 
-    if not storage then
-      ui.text(term, 2, 4, "Scanning...", theme.colour.windowText, theme.colour.window)
-    else
+    if scan then
+      ui.text(term, 2, 4, "Scanning... " .. scan.seen .. " files",
+        theme.colour.windowText, theme.colour.window)
+      local bar = width - 4
+      local done = math.min(bar, math.floor(bar * scan.seen / MAX_ENTRIES))
+      ui.fill(term, 3, 6, bar, 1, theme.colour.muted)
+      if done > 0 then ui.fill(term, 3, 6, done, 1, theme.colour.accent) end
+    elseif storage then
       local y = 4
       for _, row in ipairs(storage.rows) do
         if y > height - 1 then break end
@@ -150,48 +223,78 @@ function app.run(ctx)
     if view == "procs" then drawProcs() else drawStorage() end
   end
 
+  ------------------------------------------------------------------
+
   draw()
   local ticker = os.startTimer(1)
 
   while true do
-    local event, key = os.pullEvent()
+    -- A scan in progress drives the loop itself, yielding between slices so
+    -- the rest of the OS keeps running.
+    if scan then
+      if stepScan() then
+        draw()
+        sleep(0)
+      else
+        draw()
+      end
+    end
+
+    local event, key, mx, my = os.pullEvent()
 
     if event == "timer" and key == ticker then
       ticker = os.startTimer(1)
       if view == "procs" then draw() end
 
     elseif event == "key" then
-      if view == "procs" then
-        local list = kernel.list()
-        if key == keys.down then index = math.min(#list, index + 1)
+      if confirming then
+        if key == keys.y then
+          kernel.close(confirming)
+          say("Closed " .. confirming.title)
+        end
+        confirming = nil
+        draw()
+
+      elseif view == "procs" then
+        if key == keys.down then index = math.min(#shown, index + 1)
         elseif key == keys.up then index = math.max(1, index - 1)
         elseif key == keys.s then
           view = "storage"
-          storage = nil
-          draw()
-          scanStorage()
+          beginScan()
         elseif key == keys.enter then
-          local proc = list[#list - index + 1]
+          local proc = shown[index]
           if proc then kernel.focusOn(proc) end
         elseif key == keys.k then
-          local proc = list[#list - index + 1]
-          -- Refuse to close this window from inside itself.
-          if proc and proc.title:find("Tasks") then
+          local proc = shown[index]
+          -- Identity, not the title: renaming a window must not make it
+          -- killable from inside itself.
+          if proc and proc.appId == "tasks" then
             say("Close Tasks with its own X")
           elseif proc then
-            kernel.close(proc)
-            say("Closed " .. proc.title)
+            confirming = proc
           end
         end
         draw()
+
       else
         if key == keys.backspace then view = "procs"
-        elseif key == keys.r then storage = nil; draw(); scanStorage()
+        elseif key == keys.r then beginScan()
         end
         draw()
       end
 
     elseif event == "mouse_click" then
+      if view == "procs" and my then
+        local row = my - 3
+        if shown[row] then
+          if row == index and shown[row].appId ~= "tasks" then
+            confirming = shown[row]
+          else
+            index = row
+            kernel.focusOn(shown[row])
+          end
+        end
+      end
       draw()
 
     elseif event == "term_resize" then

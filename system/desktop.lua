@@ -177,6 +177,10 @@ function desktop.drawBackground(win)
       local held = dragging and dragging.id == app.id and dragging.moved
 
       if not held then
+        -- Selection is a ring around the icon rather than an inverted label.
+        if active then
+          ui.ring(win, x + 4, y + 1, 2, theme.colour.desktopText)
+        end
         drawArt(win, x + 1, y, app.icon or BLANK_ICON)
       end
 
@@ -231,9 +235,8 @@ function desktop.drawTaskbar(target)
       if proc.appId == id then running = true break end
     end
     local colour = iconColour(app)
-    ui.fill(target, x, H, 2, 1, colour)
-    ui.text(target, x, H, tostring(slot),
-      colour == colours.black and colours.white or colours.black, colour)
+    ui.badge(target, x, H, colour, tostring(slot),
+      colour == colours.black and colours.white or colours.black)
     -- A dot marks an app that is already open, so the chip doubles as a
     -- "jump to it" rather than only a launcher.
     ui.text(target, x + 1, H, running and ui.glyph.bullet or " ",
@@ -303,8 +306,8 @@ function desktop.drawOverlay(target)
   if not menuOpen then return end
   local x, y, w, h, items = menuRect()
 
-  ui.fill(target, x, y, w, h, theme.colour.window)
-  ui.row(target, x, y, w, " " .. ui.spaced("Slate"),
+  ui.panel(target, x, y, w, h, theme.colour.window, theme.colour.accent)
+  ui.row(target, x + 1, y + 1, w - 2, " " .. ui.spaced("Slate"),
     theme.colour.accentText, theme.colour.accent)
 
   for index = 1, math.min(#items, h - 2) do

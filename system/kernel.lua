@@ -300,6 +300,10 @@ local function drawTitleBar(proc)
   ui.text(proc.frame, proc.w - 2, 1, proc.full and "v" or "^", theme.colour.titleText, bg)
   ui.text(proc.frame, proc.w, 1, "X", active and colours.white or theme.colour.titleText,
     active and theme.colour.danger or bg)
+  -- Rounded title bar ends, so a window is not a hard rectangle. Only the
+  -- title row is touched: the rows below belong to the content window, and
+  -- drawing a side border there would clip two columns off every app.
+  ui.text(proc.frame, 1, 1, "(", bg, colours.black)
 end
 
 local function splice(base, patch, at)

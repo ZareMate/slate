@@ -1,5 +1,5 @@
 {
-  "version": "1.8",
+  "version": "1.9",
   "files": [
     "apps/console.lua",
     "apps/devices.lua",
@@ -35,5 +35,5 @@
     "system/ui.lua",
     "system/update.lua"
   ],
-  "notes": "Working hotbar with pinning, store scrolling fixed, monitor display mode, wifi chime."
+  "notes": "Tasks no longer freezes the OS; circles, rings and outlines across the UI."
 }
