@@ -39,6 +39,16 @@ local updatePending
 local status
 local statusUntil = 0
 local dragging = nil               -- { id, slot, mx, my, moved } while held
+
+-- catalog.all() reads settings and rebuilds a list; the taskbar, the icons
+-- and the start menu all wanted it in the same frame. Cached for the frame
+-- and dropped when anything could have changed it.
+local appCache = nil
+local function apps()
+  if not appCache then appCache = catalog.all() end
+  return appCache
+end
+function desktop.forgetApps() appCache = nil end
 local hotbar = {}                  -- slot rects, rebuilt each taskbar draw
 
 local MENU_POWER = {
@@ -167,6 +177,7 @@ local function iconColour(app)
 end
 
 function desktop.drawBackground(win)
+  appCache = nil                    -- one rebuild per frame, at the start
   local W, _, DESK_H = kernel.size()
   wallpaper.draw(win, W, DESK_H, theme.colour.desktop)
 
@@ -174,7 +185,7 @@ function desktop.drawBackground(win)
   -- meant to look alarming, not to lock you out of the cure.
   if infection.active() then infection.glitch(win, W, DESK_H) end
 
-  for index, app in ipairs(catalog.all()) do
+  for index, app in ipairs(apps()) do
     local x, y = iconRect(index)
     if y + ART_H <= DESK_H then
       local active = (selected == index and kernel.focused() == nil)
@@ -270,7 +281,7 @@ end
 
 local function menuItems()
   local items = {}
-  for _, app in ipairs(catalog.all()) do
+  for _, app in ipairs(apps()) do
     items[#items + 1] = { label = app.title, id = app.id }
   end
   items[#items + 1] = { separator = true }
@@ -455,7 +466,7 @@ end
 -- Handles clicks AND drags on the wallpaper. A press that never moves is a
 -- launch; a press that moves is a rearrange, decided on release.
 function desktop.desktopClick(name, button, mx, my)
-  local apps = catalog.all()
+  local apps = apps()
 
   if name == "mouse_click" then
     local slot = slotAt(mx, my)
@@ -493,7 +504,7 @@ end
 
 function desktop.desktopKey(event)
   if event[1] ~= "key" then return end
-  local apps = catalog.all()
+  local apps = apps()
   local key = event[2]
   if key == keys.right then selected = math.min(#apps, selected + 1)
   elseif key == keys.left then selected = math.max(1, selected - 1)

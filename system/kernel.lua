@@ -56,6 +56,9 @@ local ctrlDown = false
 local root = ""               -- where Slate is installed; set by startup.lua
 local pendingPower = nil      -- "reboot" or "shutdown", run after the loop ends
 local modems = {}             -- modems seen attached, so detach can be told apart
+local painted = {}            -- last row presented, so only changes are redrawn
+local watchers = {}           -- frame listeners (the remote viewer)
+local monitorNotice = false   -- whether the "desktop moved" notice is showing
 
 kernel.launcher = nil         -- set by the desktop so apps can open apps
 
@@ -379,27 +382,58 @@ function kernel.draw()
   -- Present: the real terminal always, then any mirrors. Presenting to
   -- term.native() is unconditional, which is what keeps Slate a no-screen-
   -- required OS however many monitors are attached.
+  -- Only rows that actually changed are sent to the terminal. Most frames
+  -- touch a few lines - a clock tick, one window - so this is the difference
+  -- between redrawing 19 rows and redrawing one, and it is what makes the
+  -- desktop feel smooth rather than flickery.
+  local changed = {}
+  for y = 1, H do
+    local text, fg, bg = screen.getLine(y)
+    local signature = text .. fg .. bg
+    if painted[y] ~= signature then
+      painted[y] = signature
+      changed[#changed + 1] = y
+    end
+  end
+
   local onMonitor = screens.primary() ~= nil
   if not onMonitor then
-    for y = 1, H do
+    for _, y in ipairs(changed) do
       local text, fg, bg = screen.getLine(y)
       native.setCursorPos(1, y)
       native.blit(text, fg, bg)
     end
   end
   if onMonitor or screens.count() > 0 then
-    screens.presentFrame(H, function(y) return screen.getLine(y) end)
+    screens.presentFrame(H, function(y) return screen.getLine(y) end, changed)
   end
-  if onMonitor then
-    -- The computer itself cannot show a frame built for a bigger screen, so
-    -- it says where the desktop went rather than drawing a clipped mess.
+
+  -- Anything watching the frame (the remote viewer) gets the same rows.
+  if #changed > 0 and next(watchers) then
+    for _, watcher in pairs(watchers) do
+      local ok = pcall(watcher, changed, function(y)
+        return screen.getLine(y)
+      end, W, H)
+      if not ok then watchers[watcher] = nil end
+    end
+  end
+  -- The computer itself cannot show a frame built for a bigger screen, so it
+  -- says where the desktop went. Drawn once on the change, not every frame -
+  -- clearing the terminal 3 times a second is exactly the flicker the
+  -- change-only presenter exists to remove.
+  if onMonitor ~= monitorNotice then
+    monitorNotice = onMonitor
     local nw, nh = nativeSize()
     native.setBackgroundColour(colours.black)
     native.clear()
-    ui.centre(native, math.floor(nh / 2), "Desktop on " .. tostring(screens.primaryName()),
-      theme.colour.accent, colours.black, 1, nw)
-    ui.centre(native, math.floor(nh / 2) + 1, "keyboard still works here",
-      colours.grey, colours.black, 1, nw)
+    if onMonitor then
+      ui.centre(native, math.floor(nh / 2), "Desktop on " .. tostring(screens.primaryName()),
+        theme.colour.accent, colours.black, 1, nw)
+      ui.centre(native, math.floor(nh / 2) + 1, "keyboard still works here",
+        colours.grey, colours.black, 1, nw)
+    else
+      kernel.repaint()
+    end
   end
 
   -- The real cursor follows the focused app's window, so typing in a nested
@@ -538,10 +572,43 @@ function kernel.root()
   return root
 end
 
+-- Frame watchers receive (changedRows, getLine, W, H) after every paint.
+function kernel.watch(fn)
+  watchers[fn] = fn
+  painted = {}          -- the next frame is full, so a watcher starts complete
+  dirty = true
+  return fn
+end
+
+function kernel.unwatch(fn)
+  watchers[fn] = nil
+end
+
+-- The whole screen as blit rows. Used to send a joining viewer a full frame.
+function kernel.snapshot()
+  local rows = {}
+  if not screen then return rows, W, H end
+  for y = 1, H do
+    local text, fg, bg = screen.getLine(y)
+    rows[y] = { text, fg, bg }
+  end
+  return rows, W, H
+end
+
 -- Called when a monitor becomes (or stops being) the display, and when one
 -- is resized. Everything that depends on the size is rebuilt, and every app
 -- is told its terminal changed so it can lay itself out again.
+-- Forces the next frame to be painted in full. Anything that invalidates
+-- what is already on screen - a resize, a monitor coming or going - has to
+-- call this, or the change-only presenter will happily skip rows that are
+-- stale rather than unchanged.
+function kernel.repaint()
+  painted = {}
+  dirty = true
+end
+
 function kernel.relayout()
+  painted = {}
   W, H = displaySize()
   DESK_H = H - 1
   background = window.create(native, 1, 1, W, DESK_H, false)

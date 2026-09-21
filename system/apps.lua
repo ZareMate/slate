@@ -38,6 +38,11 @@ return {
     icon = { "2222222", "2222222", " 2     " },
   },
   {
+    id = "remote", title = "Remote", module = "apps/remote", w = 44, h = 15,
+    single = true,
+    icon = { "9999999", "9  0  9", "  999  " },
+  },
+  {
     id = "minebit", title = "Minebit", module = "apps/minebit", w = 44, h = 16,
     icon = { "5     5", "5555555", " 5   5 " },
   },

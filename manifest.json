@@ -1,5 +1,5 @@
 {
-  "version": "1.14",
+  "version": "1.15",
   "files": [
     "apps/console.lua",
     "apps/devices.lua",
@@ -7,6 +7,7 @@
     "apps/files.lua",
     "apps/messenger.lua",
     "apps/minebit.lua",
+    "apps/remote.lua",
     "apps/settings.lua",
     "apps/store.lua",
     "apps/tasks.lua",
@@ -37,5 +38,5 @@
     "system/update.lua",
     "system/wallpaper.lua"
   ],
-  "notes": "Files shows free space."
+  "notes": "Remote desktop over rednet, and only changed rows are repainted."
 }

@@ -24,6 +24,7 @@ local peripherals = use("system/peripherals")
 local screens = {}
 
 local active = {}          -- [name] = wrapped monitor, mirroring
+local fresh = {}           -- monitors needing one full paint
 local primaryName = nil    -- the monitor acting as the display, if any
 local primaryTerm = nil
 
@@ -81,6 +82,7 @@ function screens.enable(name)
   if not monitor then return false, "could not wrap " .. name end
   prepare(monitor)
   active[name] = monitor
+  fresh[name] = true
   return true
 end
 
@@ -114,6 +116,7 @@ function screens.setPrimary(name)
   screens.disable(name)          -- a display is not also a mirror
   prepare(monitor)
   primaryName, primaryTerm = name, monitor
+  fresh[name] = true
   return true
 end
 
@@ -174,28 +177,39 @@ end
 
 -- One pcall per monitor per frame rather than per row: a monitor broken off
 -- mid-frame drops out instead of erroring the whole OS.
-function screens.presentFrame(rows, getLine)
-  if primaryTerm then
-    local ok = pcall(function()
-      local w, h = primaryTerm.getSize()
-      for y = 1, math.min(rows, h) do
-        local text, fg, bg = getLine(y)
-        primaryTerm.setCursorPos(1, y)
-        primaryTerm.blit(text:sub(1, w), fg:sub(1, w), bg:sub(1, w))
-      end
-    end)
+-- changed is the list of rows the kernel actually repainted. A monitor that
+-- has just been switched on has nothing on it yet, so it gets one full paint
+-- first and only changes after that.
+local function paint(monitor, rows, getLine, changed, full)
+  local w, h = monitor.getSize()
+  if full or not changed then
+    for y = 1, math.min(rows, h) do
+      local text, fg, bg = getLine(y)
+      monitor.setCursorPos(1, y)
+      monitor.blit(text:sub(1, w), fg:sub(1, w), bg:sub(1, w))
+    end
+    return
+  end
+  for _, y in ipairs(changed) do
+    if y <= h then
+      local text, fg, bg = getLine(y)
+      monitor.setCursorPos(1, y)
+      monitor.blit(text:sub(1, w), fg:sub(1, w), bg:sub(1, w))
+    end
+  end
+end
+
+function screens.presentFrame(rows, getLine, changed)
+  local name = primaryName
+  if primaryTerm and name then
+    local ok = pcall(paint, primaryTerm, rows, getLine, changed, fresh[name])
+    fresh[name] = nil
     if not ok then screens.clearPrimary() end
   end
 
   for name, monitor in pairs(active) do
-    local ok = pcall(function()
-      local w, h = monitor.getSize()
-      for y = 1, math.min(rows, h) do
-        local text, fg, bg = getLine(y)
-        monitor.setCursorPos(1, y)
-        monitor.blit(text:sub(1, w), fg:sub(1, w), bg:sub(1, w))
-      end
-    end)
+    local ok = pcall(paint, monitor, rows, getLine, changed, fresh[name])
+    fresh[name] = nil
     if not ok then active[name] = nil end
   end
 end
