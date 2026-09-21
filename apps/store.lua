@@ -87,7 +87,11 @@ function app.run(ctx)
       say("That id belongs to a built-in app")
       return
     end
-    if type(entry.file) ~= "string" or entry.file:find("%.%.") then
+    if type(entry.id) ~= "string" or not entry.id:match("^[%w_-]+$") then
+      say("Bad app id in the index")
+      return
+    end
+    if type(entry.file) ~= "string" or entry.file:find("%.%.") or entry.file:match("^/") then
       say("Bad file name in the index")
       return
     end
@@ -98,7 +102,8 @@ function app.run(ctx)
 
     state = "busy"
     local base = update.url()
-    local body, err = fetch(base .. "/store/" .. entry.file)
+    local source = type(entry.source) == "string" and entry.source:gsub("/+$", "") or (base .. "/store")
+    local body, err = fetch(source .. "/" .. entry.file)
     if not body then
       state = "list"
       say("Download failed: " .. tostring(err))
@@ -117,7 +122,7 @@ function app.run(ctx)
     handle.write(body)
     handle.close()
 
-    catalog.install({
+    local registered, registerErr = catalog.install({
       id = entry.id,
       title = entry.title or entry.id,
       module = module,
@@ -126,7 +131,14 @@ function app.run(ctx)
       icon = type(entry.icon) == "table" and entry.icon or nil,
       single = entry.single == true,
       api = tonumber(entry.api),
-    })
+    }, root)
+
+    if not registered then
+      pcall(fs.delete, path)
+      state = "list"
+      say("Could not register app: " .. tostring(registerErr))
+      return
+    end
     state = "list"
     say("Installed " .. (entry.title or entry.id))
     ctx.notify((entry.title or entry.id) .. " installed")
