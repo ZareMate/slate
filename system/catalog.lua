@@ -111,11 +111,21 @@ function catalog.isInstalled(id)
   return catalog.isBuiltin(id)
 end
 
-function catalog.install(entry)
+function catalog.install(entry, root)
   load()
+  if type(entry) ~= "table" or type(entry.id) ~= "string" then
+    return false, "invalid store entry"
+  end
   if catalog.isBuiltin(entry.id) then return false, "that is a built-in app" end
   for index, app in ipairs(installed) do
-    if app.id == entry.id then installed[index] = entry; persist(); return true end
+    if app.id == entry.id then
+      if root and app.module and app.module ~= entry.module then
+        pcall(fs.delete, fs.combine(root, app.module .. ".lua"))
+      end
+      installed[index] = entry
+      persist()
+      return true
+    end
   end
   installed[#installed + 1] = entry
   persist()
