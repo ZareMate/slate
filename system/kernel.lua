@@ -310,9 +310,26 @@ local function splice(base, patch, at)
   return base:sub(1, at - 1) .. patch .. base:sub(at + #patch)
 end
 
+-- The desktop draws inside the kernel's own coroutine, not an app's, so an
+-- error here used to take the whole OS down - which is exactly what a broken
+-- developer-mode taskbar did. Shell drawing is now contained: a failing
+-- layer is skipped and reported once, and the rest of the desktop lives.
+local shellFault = nil
+
+local function safely(what, fn, ...)
+  local ok, err = pcall(fn, ...)
+  if ok then return true end
+  if not shellFault then
+    shellFault = what .. ": " .. tostring(err)
+  end
+  return false
+end
+
 function kernel.draw()
   dirty = false
-  desktop.drawBackground(background)
+  if not safely("background", desktop.drawBackground, background) then
+    ui.fill(background, 1, 1, W, DESK_H, theme.colour.desktop)
+  end
 
   for _, proc in ipairs(processes) do
     if not proc.minimised then drawTitleBar(proc) end
@@ -348,8 +365,16 @@ function kernel.draw()
     screen.blit(text, fg, bg)
   end
 
-  desktop.drawTaskbar(screen)
-  desktop.drawOverlay(screen)
+  if not safely("taskbar", desktop.drawTaskbar, screen) then
+    ui.fill(screen, 1, H, W, 1, theme.colour.bar)
+  end
+  safely("overlay", desktop.drawOverlay, screen)
+
+  -- Say what broke, once, where it cannot be missed.
+  if shellFault then
+    ui.row(screen, 1, H, W, " shell: " .. ui.clip(shellFault, W - 9),
+      colours.white, theme.colour.danger)
+  end
 
   -- Present: the real terminal always, then any mirrors. Presenting to
   -- term.native() is unconditional, which is what keeps Slate a no-screen-
@@ -505,6 +530,12 @@ end
 -- points back here, and guessing it from shell state would be fragile.
 function kernel.setRoot(path)
   root = path or ""
+end
+
+-- Where Slate lives. The unattended updater needs this to write files back
+-- into the install, not into the root of the computer.
+function kernel.root()
+  return root
 end
 
 -- Called when a monitor becomes (or stops being) the display, and when one

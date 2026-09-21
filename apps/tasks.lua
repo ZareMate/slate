@@ -23,8 +23,10 @@ local app = {}
 local SLICE = 40          -- directory entries per slice
 local MAX_ENTRIES = 3000  -- hard ceiling, so a huge tree still finishes
 
+local dev = use("system/dev")
+
 local function heapKB()
-  return math.floor(collectgarbage("count"))
+  return dev.heapKB() or 0
 end
 
 local function bytes(value)

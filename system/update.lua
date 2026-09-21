@@ -15,7 +15,7 @@
 
 local update = {}
 
-update.VERSION = "1.9"
+update.VERSION = "1.12"
 
 local MANIFEST = "manifest.json"
 
@@ -48,16 +48,47 @@ function update.setUrl(value)
   end)
 end
 
+-- "off" | "notify" | "silent". Silent installs without asking, which is what
+-- most people mean by auto-update; notify only tells you one is waiting.
+function update.mode()
+  local ok, value = pcall(settings.get, "slate.update.mode")
+  if ok and (value == "off" or value == "notify" or value == "silent") then
+    return value
+  end
+  -- Older installs stored a boolean; treat a true as the new silent default.
+  local legacy, was = pcall(settings.get, "slate.update.auto")
+  if legacy and was == true then return "silent" end
+  return "silent"
+end
+
+function update.setMode(mode)
+  pcall(function()
+    settings.set("slate.update.mode", mode)
+    settings.save()
+  end)
+end
+
 function update.auto()
-  local ok, value = pcall(settings.get, "slate.update.auto")
-  return ok and value == true
+  -- The whole unattended path in one call: check, and install if there is
+-- something newer. Returns the version installed, or nil plus a reason.
+--
+-- It still stages every file before writing any of them, so an unattended
+-- update cannot leave a half-installed OS behind. What it skips is asking.
+function update.applySilently(root)
+  local info, err = update.check()
+  if not info then return nil, err end
+  if not info.newer then return nil, nil end
+
+  local ok, result = update.install(info, root)
+  if not ok then return nil, tostring(result) end
+  return info.version
+end
+
+return update.mode() ~= "off"
 end
 
 function update.setAuto(on)
-  pcall(function()
-    settings.set("slate.update.auto", on == true)
-    settings.save()
-  end)
+  update.setMode(on and "silent" or "off")
 end
 
 -- Compares dotted versions numerically: "1.10" is newer than "1.9".

@@ -18,6 +18,7 @@ local notify = use("system/notify")
 local infection = use("system/infection")
 local compat = use("system/compat")
 local dev = use("system/dev")
+local wallpaper = use("system/wallpaper")
 
 local desktop = {}
 
@@ -32,6 +33,9 @@ local menuOpen = false
 local menuIndex = 1
 local selected = 1
 local clockTimer
+local animTimer
+local updateTimer
+local updatePending
 local status
 local statusUntil = 0
 local dragging = nil               -- { id, slot, mx, my, moved } while held
@@ -164,7 +168,7 @@ end
 
 function desktop.drawBackground(win)
   local W, _, DESK_H = kernel.size()
-  ui.fill(win, 1, 1, W, DESK_H, theme.colour.desktop)
+  wallpaper.draw(win, W, DESK_H, theme.colour.desktop)
 
   -- Drawn before the icons so the desktop stays clickable: the infection is
   -- meant to look alarming, not to lock you out of the cure.
@@ -504,6 +508,37 @@ end
 -- system
 --------------------------------------------------------------------------
 
+-- Unattended by default: it installs and then tells you, rather than asking
+-- first. The restart is still yours to make - nothing reboots on its own.
+function desktop.checkForUpdate()
+  local update = loadModule("system/update")
+  if not http or not update.url() then return end
+  local mode = update.mode()
+  if mode == "off" then return end
+
+  if mode == "notify" then
+    local info = update.check()
+    if info and info.newer then
+      notify.push("updater", "Slate " .. info.version .. " is available")
+      desktop.notify("Update available: " .. info.version)
+    end
+    return
+  end
+
+  local version, problem = update.applySilently(kernel.root and kernel.root() or "")
+  if version then
+    updatePending = version
+    notify.push("updater", "Updated to Slate " .. version .. " - restart to finish")
+    desktop.notify("Updated to " .. version)
+  elseif problem then
+    notify.push("updater", "Update failed: " .. tostring(problem))
+  end
+end
+
+function desktop.updatePending()
+  return updatePending
+end
+
 function desktop.notify(text)
   status = text
   statusUntil = os.clock() + 3
@@ -535,11 +570,35 @@ local function spawnPopup(message, onClose)
   end
 end
 
+-- True when a window is covering the whole desktop: animating a background
+-- nobody can see is the easiest way to waste a Minecraft computer's time.
+local function backgroundHidden()
+  local W, _, DESK_H = kernel.size()
+  for _, proc in ipairs(kernel.list()) do
+    if not proc.minimised and proc.x <= 1 and proc.y <= 1
+      and proc.w >= W and proc.h >= DESK_H then
+      return true
+    end
+  end
+  return false
+end
+
 function desktop.systemEvent(event)
   if event[1] == "timer" and event[2] == clockTimer then
     clockTimer = os.startTimer(1)
     infection.tick(spawnPopup)
     kernel.invalidate()
+
+  elseif event[1] == "timer" and event[2] == updateTimer then
+    updateTimer = nil
+    desktop.checkForUpdate()
+
+  elseif event[1] == "timer" and event[2] == animTimer then
+    animTimer = os.startTimer(0.3)
+    if wallpaper.animated() and not backgroundHidden() then
+      wallpaper.tick()
+      kernel.invalidate()
+    end
   end
 end
 
@@ -548,12 +607,12 @@ function desktop.init(k, loader)
   loadModule = loader
   kernel.launcher = function(id, args) return desktop.launch(id, args) end
   clockTimer = os.startTimer(1)
+  wallpaper.load()
+  animTimer = os.startTimer(0.3)
 
-  -- Auto-update runs as a visible window, never silently.
-  local update = loadModule("system/update")
-  if update.auto() and update.url() and http then
-    desktop.launch("updater", { "auto" })
-  end
+  -- Updates are checked shortly after the desktop is up, never during boot,
+  -- so a slow or unreachable server cannot delay startup.
+  updateTimer = os.startTimer(4)
 end
 
 return desktop

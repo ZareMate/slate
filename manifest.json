@@ -1,10 +1,11 @@
 {
-  "version": "1.9",
+  "version": "1.12",
   "files": [
     "apps/console.lua",
     "apps/devices.lua",
     "apps/editor.lua",
     "apps/files.lua",
+    "apps/messenger.lua",
     "apps/minebit.lua",
     "apps/settings.lua",
     "apps/store.lua",
@@ -33,7 +34,8 @@
     "system/sound.lua",
     "system/theme.lua",
     "system/ui.lua",
-    "system/update.lua"
+    "system/update.lua",
+    "system/wallpaper.lua"
   ],
-  "notes": "Tasks no longer freezes the OS; circles, rings and outlines across the UI."
+  "notes": "Messenger built in, animated backgrounds, sectioned Settings, unattended updates, developer mode fixed."
 }

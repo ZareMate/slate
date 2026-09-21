@@ -30,6 +30,14 @@ return {
     icon = { "0000000", "0888880", "0088800" },
   },
   {
+    -- Core, not a store app: talking to the other computers is the reason
+    -- most of these are networked in the first place, and it must work on a
+    -- machine that has never reached the store.
+    id = "messenger", title = "Messenger", module = "apps/messenger", w = 42, h = 15,
+    single = true,
+    icon = { "2222222", "2222222", " 2     " },
+  },
+  {
     id = "minebit", title = "Minebit", module = "apps/minebit", w = 44, h = 16,
     icon = { "5     5", "5555555", " 5   5 " },
   },

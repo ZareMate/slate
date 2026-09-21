@@ -30,10 +30,23 @@ function dev.toggle()
   return now
 end
 
+-- Heap size in KB, or nil when this build has no collectgarbage. CC's sandbox
+-- does not promise it, and dev mode used to call it straight from the
+-- taskbar - which runs in the kernel, so a nil there took the whole OS down
+-- rather than one window.
+function dev.heapKB()
+  if type(collectgarbage) ~= "function" then return nil end
+  local ok, value = pcall(collectgarbage, "count")
+  if not ok or type(value) ~= "number" then return nil end
+  return math.floor(value)
+end
+
 -- A short line for the taskbar: heap and window count, the two numbers worth
 -- watching while building something.
 function dev.stats(windows)
-  return ("%dK %dw"):format(math.floor(collectgarbage("count")), windows or 0)
+  local heap = dev.heapKB()
+  if not heap then return ("%dw"):format(windows or 0) end
+  return ("%dK %dw"):format(heap, windows or 0)
 end
 
 return dev

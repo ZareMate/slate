@@ -100,21 +100,6 @@
       ]
     },
     {
-      "id": "messenger",
-      "title": "Messenger",
-      "file": "messenger.lua",
-      "blurb": "Message other computers over rednet.",
-      "w": 42,
-      "h": 15,
-      "api": 3,
-      "single": true,
-      "icon": [
-        "2222222",
-        "2222222",
-        " 2     "
-      ]
-    },
-    {
       "id": "browser",
       "title": "Furnace",
       "file": "browser.lua",
