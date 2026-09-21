@@ -1,0 +1,106 @@
+--[[ Slate drawing helpers.
+
+  Everything here takes an explicit target terminal (a window, or the native
+  term) rather than drawing to whatever happens to be redirected. The kernel
+  composites windows by hand, so "where am I drawing" must never be implicit.
+]]
+
+local ui = {}
+
+-- blit wants one colour character per cell, so cache the repeats we use most.
+local function blitRun(colour, width)
+  return colours.toBlit(colour):rep(width)
+end
+
+function ui.fill(target, x, y, w, h, bg)
+  if w < 1 or h < 1 then return end
+  local blank = (" "):rep(w)
+  local run = blitRun(bg, w)
+  for row = y, y + h - 1 do
+    target.setCursorPos(x, row)
+    target.blit(blank, run, run)
+  end
+end
+
+function ui.text(target, x, y, text, fg, bg)
+  target.setCursorPos(x, y)
+  if bg then target.setBackgroundColour(bg) end
+  if fg then target.setTextColour(fg) end
+  target.write(text)
+end
+
+-- Pad or truncate to exactly `width`, so a row never leaves stale characters.
+function ui.pad(text, width)
+  text = tostring(text)
+  if #text > width then return ui.clip(text, width) end
+  return text .. (" "):rep(width - #text)
+end
+
+function ui.clip(text, width)
+  text = tostring(text)
+  if width <= 0 then return "" end
+  if #text <= width then return text end
+  if width <= 2 then return text:sub(1, width) end
+  return text:sub(1, width - 2) .. ".."
+end
+
+function ui.row(target, x, y, w, text, fg, bg)
+  ui.text(target, x, y, ui.pad(text, w), fg, bg)
+end
+
+function ui.centre(target, y, text, fg, bg, x, w)
+  text = ui.clip(text, w)
+  ui.text(target, x + math.floor((w - #text) / 2), y, text, fg, bg)
+end
+
+function ui.hit(mx, my, x, y, w, h)
+  return mx >= x and mx <= x + w - 1 and my >= y and my <= y + h - 1
+end
+
+-- A one-column scrollbar. Drawn only when there is something to scroll, so a
+-- short list does not grow a decorative stripe.
+function ui.scrollbar(target, x, y, h, total, offset, track, thumb)
+  if total <= h then return end
+  ui.fill(target, x, y, 1, h, track)
+  local size = math.max(1, math.floor(h * h / total))
+  local span = h - size
+  local maxOffset = total - h
+  local pos = maxOffset > 0 and math.floor(span * offset / maxOffset + 0.5) or 0
+  ui.fill(target, x, y + pos, 1, size, thumb)
+end
+
+-- Word-wrap to a column width, keeping existing line breaks. Used by the crash
+-- screen and by Messenger, so it lives here rather than in both.
+function ui.wrap(text, width)
+  local out = {}
+  if width < 1 then return out end
+  for line in (tostring(text) .. "\n"):gmatch("([^\n]*)\n") do
+    if line == "" then
+      out[#out + 1] = ""
+    end
+    while #line > width do
+      -- Break on the last space that fits; fall back to a hard cut for a word
+      -- longer than the whole column.
+      local cut = line:sub(1, width + 1):match(".*%s()")
+      if not cut or cut < 2 then cut = width + 1 end
+      local piece = line:sub(1, cut - 1):gsub("%s+$", "")
+      out[#out + 1] = piece
+      line = line:sub(cut):gsub("^%s+", "")
+    end
+    if #line > 0 then out[#out + 1] = line end
+  end
+  return out
+end
+
+-- Draws a label with a bracketed hotkey, e.g. "[D]elete". Basic computers have
+-- no mouse, so every action needs a visible key.
+function ui.key(target, x, y, key, label, fg, bg, keyFg)
+  ui.text(target, x, y, "[", fg, bg)
+  target.setTextColour(keyFg or fg)
+  target.write(key)
+  target.setTextColour(fg)
+  target.write("]" .. label)
+  return x + 3 + #label
+end
+
+return ui

@@ -1,0 +1,543 @@
+--[[ Slate kernel: processes, windows, compositing, event routing.
+
+  Each process is a coroutine plus two windows. The outer `frame` holds the
+  title bar and is kept INVISIBLE; the inner `content` is visible relative to
+  the frame, so an app's writes land in the frame's buffer but never reach the
+  real terminal on their own.
+
+  That indirection is the whole trick. CC's window API draws straight through
+  to its parent, so visible overlapping windows would paint over each other in
+  whatever order they happened to write. Instead the kernel reads each frame's
+  buffer with getLine() and blits the finished picture one row at a time -
+  19 blits per frame, correct z-order, no flicker.
+]]
+
+local use = ...
+local theme = use("system/theme")
+local ui = use("system/ui")
+local screens = use("system/screens")
+local bootseq = use("system/bootseq")
+local notify = use("system/notify")
+
+local kernel = {}
+
+local native = term.native()
+local W, H = native.getSize()
+local DESK_H = H - 1          -- the bottom row belongs to the taskbar
+
+local processes = {}          -- back to front; the last entry has focus
+local nextId = 1
+local focus = nil
+
+---@type table Registered by startup.lua via kernel.setDesktop before run().
+local desktop
+
+---@type table The wallpaper layer; created in kernel.run() before any draw.
+local background
+
+---@type table The finished frame. Composed here, then presented to the real
+--- terminal and to any mirrored monitors, so every output shows the same
+--- picture from one piece of work.
+local screen
+
+local dirty = true
+local alive = true
+local drag = nil              -- { proc, offset } while a title bar is held
+local ctrlDown = false
+local root = ""               -- where Slate is installed; set by startup.lua
+local pendingPower = nil      -- "reboot" or "shutdown", run after the loop ends
+
+kernel.launcher = nil         -- set by the desktop so apps can open apps
+
+--------------------------------------------------------------------------
+-- geometry
+--------------------------------------------------------------------------
+
+local function clamp(proc)
+  proc.x = math.max(1, math.min(proc.x, W - proc.w + 1))
+  proc.y = math.max(1, math.min(proc.y, DESK_H - proc.h + 1))
+end
+
+local function topAt(mx, my)
+  for index = #processes, 1, -1 do
+    local proc = processes[index]
+    if not proc.minimised and ui.hit(mx, my, proc.x, proc.y, proc.w, proc.h) then
+      return proc
+    end
+  end
+  return nil
+end
+
+local function indexOf(proc)
+  for index, candidate in ipairs(processes) do
+    if candidate == proc then return index end
+  end
+  return nil
+end
+
+--------------------------------------------------------------------------
+-- processes
+--------------------------------------------------------------------------
+
+function kernel.list() return processes end
+function kernel.focused() return focus end
+function kernel.invalidate() dirty = true end
+function kernel.size() return W, H, DESK_H end
+
+function kernel.focusOn(proc)
+  if not proc or proc.dead then return end
+  local index = indexOf(proc)
+  if index then table.remove(processes, index) end
+  processes[#processes + 1] = proc
+  proc.minimised = false
+  focus = proc
+  -- Opening the thing is what marks it read.
+  if proc.appId then notify.clear(proc.appId) end
+  dirty = true
+end
+
+function kernel.close(proc)
+  local index = indexOf(proc)
+  if not index then return end
+  table.remove(processes, index)
+  proc.dead = true
+  -- Cleanup registered with ctx.onClose. It runs here, outside the app's
+  -- coroutine, so it must not draw or yield - it is for releasing things the
+  -- world can see, like a speaker that would otherwise keep playing.
+  if proc.onClose then
+    local hook = proc.onClose
+    proc.onClose = nil
+    pcall(hook)
+  end
+  if focus == proc then
+    focus = processes[#processes]
+  end
+  dirty = true
+end
+
+function kernel.minimise(proc)
+  proc.minimised = true
+  if focus == proc then
+    focus = nil
+    for index = #processes, 1, -1 do
+      if not processes[index].minimised then focus = processes[index]; break end
+    end
+  end
+  dirty = true
+end
+
+-- Fullscreen genuinely resizes the window, rather than just drawing it bigger,
+-- so the app is told its terminal changed and can lay itself out again.
+function kernel.toggleFullscreen(proc)
+  if not proc or proc.dead then return end
+  if proc.full then
+    proc.x, proc.y = proc.full.x, proc.full.y
+    proc.w, proc.h = proc.full.w, proc.full.h
+    proc.full = nil
+  else
+    proc.full = { x = proc.x, y = proc.y, w = proc.w, h = proc.h }
+    proc.x, proc.y, proc.w, proc.h = 1, 1, W, DESK_H
+  end
+  proc.frame.reposition(1, 1, proc.w, proc.h)
+  proc.content.reposition(1, 2, proc.w, proc.h - 1)
+  clamp(proc)
+  dirty = true
+  kernel.resume(proc, { "term_resize", n = 1 })
+end
+
+local function contextFor(proc)
+  return {
+    close = function() kernel.close(proc) end,
+    setTitle = function(text) proc.title = tostring(text); dirty = true end,
+    launch = function(id, args) if kernel.launcher then return kernel.launcher(id, args) end end,
+    size = function() return proc.content.getSize() end,
+    redraw = function() dirty = true end,
+    onClose = function(fn) proc.onClose = fn end,
+    power = function(mode) kernel.power(mode) end,
+    notify = function(text) notify.push(proc.appId, text) end,
+    fullscreen = function() kernel.toggleFullscreen(proc) end,
+    root = function() return root end,
+  }
+end
+
+-- Windows open centred. The small stagger stops a second window of the same
+-- size from sitting exactly on top of the first, without throwing it into a
+-- corner.
+local function placement(w, h)
+  local step = (#processes % 4) - 1        -- -1, 0, 1, 2
+  local x = math.floor((W - w) / 2) + 1 + step * 2
+  local y = math.floor((DESK_H - h) / 2) + 1 + step
+  return x, y
+end
+
+function kernel.spawn(spec)
+  local w = math.max(16, math.min(spec.w or 38, W))
+  local h = math.max(5, math.min(spec.h or 13, DESK_H))
+  local x, y = placement(w, h)
+  if spec.x then x = spec.x end
+  if spec.y then y = spec.y end
+
+  local frame = window.create(native, 1, 1, w, h, false)
+  local content = window.create(frame, 1, 2, w, h - 1, true)
+
+  local proc = {
+    id = nextId,
+    title = spec.title or "Window",
+    x = x, y = y, w = w, h = h,
+    frame = frame, content = content,
+    filter = nil, dead = false, minimised = false, crashed = false,
+  }
+  nextId = nextId + 1
+  clamp(proc)
+
+  content.setBackgroundColour(theme.colour.window)
+  content.setTextColour(theme.colour.windowText)
+  content.clear()
+  content.setCursorPos(1, 1)
+
+  local ctx = contextFor(proc)
+  proc.co = coroutine.create(function()
+    return spec.run(ctx, table.unpack(spec.args or {}, 1, (spec.args and #spec.args) or 0))
+  end)
+
+  processes[#processes + 1] = proc
+  kernel.focusOn(proc)
+  kernel.resume(proc, { n = 0 })
+  return proc
+end
+
+--------------------------------------------------------------------------
+-- crash screen
+--------------------------------------------------------------------------
+
+-- A crashed app keeps its window and shows why, instead of vanishing and
+-- leaving you to guess.
+local function crashScreen(message)
+  local w, h = term.getSize()
+  term.setBackgroundColour(theme.colour.danger)
+  term.setTextColour(colours.white)
+  term.clear()
+  ui.text(term, 2, 1, "This app stopped", colours.white, theme.colour.danger)
+  local lines = ui.wrap(message, w - 2)
+  for index = 1, math.min(#lines, h - 3) do
+    ui.text(term, 2, 2 + index, lines[index], colours.white, theme.colour.danger)
+  end
+  ui.text(term, 2, h, "Press any key to close", colours.white, theme.colour.danger)
+  os.pullEvent("key")
+end
+
+--------------------------------------------------------------------------
+-- resuming
+--------------------------------------------------------------------------
+
+function kernel.resume(proc, event)
+  if proc.dead or coroutine.status(proc.co) == "dead" then return end
+  local name = event[1]
+  if proc.filter and name ~= nil and name ~= proc.filter and name ~= "terminate" then return end
+
+  local previous = term.redirect(proc.content)
+  local ok, result = coroutine.resume(proc.co, table.unpack(event, 1, event.n or #event))
+  term.redirect(previous)
+  dirty = true
+
+  if not ok then
+    -- Ctrl+T is a deliberate stop, not a fault. os.pullEvent raises
+    -- "Terminated" for it, so close quietly instead of accusing the app.
+    if tostring(result):find("Terminated") then
+      kernel.close(proc)
+      return
+    end
+    if proc.crashed then
+      kernel.close(proc)              -- the crash screen itself failed; give up
+      return
+    end
+    proc.crashed = true
+    proc.title = "Error"
+    proc.filter = nil
+    local message = tostring(result)
+    proc.co = coroutine.create(function() crashScreen(message) end)
+    return kernel.resume(proc, { n = 0 })
+  end
+
+  if coroutine.status(proc.co) == "dead" then
+    kernel.close(proc)
+  else
+    proc.filter = result
+  end
+end
+
+local function broadcast(event)
+  local snapshot = {}
+  for index, proc in ipairs(processes) do snapshot[index] = proc end
+  for _, proc in ipairs(snapshot) do
+    if not proc.dead then kernel.resume(proc, event) end
+  end
+end
+
+--------------------------------------------------------------------------
+-- drawing
+--------------------------------------------------------------------------
+
+local function drawTitleBar(proc)
+  local active = (proc == focus)
+  local bg = active and theme.colour.titleOn or theme.colour.titleOff
+  ui.row(proc.frame, 1, 1, proc.w, " " .. ui.clip(proc.title, proc.w - 8),
+    theme.colour.titleText, bg)
+  -- Minimise, fullscreen and close sit at fixed offsets from the right edge.
+  ui.text(proc.frame, proc.w - 4, 1, "_", theme.colour.titleText, bg)
+  ui.text(proc.frame, proc.w - 2, 1, proc.full and "v" or "^", theme.colour.titleText, bg)
+  ui.text(proc.frame, proc.w, 1, "X", active and colours.white or theme.colour.titleText,
+    active and theme.colour.danger or bg)
+end
+
+local function splice(base, patch, at)
+  return base:sub(1, at - 1) .. patch .. base:sub(at + #patch)
+end
+
+function kernel.draw()
+  dirty = false
+  desktop.drawBackground(background)
+
+  for _, proc in ipairs(processes) do
+    if not proc.minimised then drawTitleBar(proc) end
+  end
+
+  -- Compose: wallpaper, then every window back to front, into the frame buffer.
+  for y = 1, DESK_H do
+    local text, fg, bg = background.getLine(y)
+    for _, proc in ipairs(processes) do
+      if not proc.minimised and y >= proc.y and y <= proc.y + proc.h - 1 then
+        local t, f, b = proc.frame.getLine(y - proc.y + 1)
+        text = splice(text, t, proc.x)
+        fg = splice(fg, f, proc.x)
+        bg = splice(bg, b, proc.x)
+      end
+    end
+    screen.setCursorPos(1, y)
+    screen.blit(text, fg, bg)
+  end
+
+  desktop.drawTaskbar(screen)
+  desktop.drawOverlay(screen)
+
+  -- Present: the real terminal always, then any mirrors. Presenting to
+  -- term.native() is unconditional, which is what keeps Slate a no-screen-
+  -- required OS however many monitors are attached.
+  for y = 1, H do
+    local text, fg, bg = screen.getLine(y)
+    native.setCursorPos(1, y)
+    native.blit(text, fg, bg)
+  end
+  if screens.count() > 0 then
+    screens.presentFrame(H, function(y) return screen.getLine(y) end)
+  end
+
+  -- The real cursor follows the focused app's window, so typing in a nested
+  -- shell looks like typing in a terminal.
+  local proc = focus
+  if proc and not proc.minimised and not proc.crashed and proc.content.getCursorBlink() then
+    local cx, cy = proc.content.getCursorPos()
+    local x, y = proc.x + cx - 1, proc.y + cy
+    if x >= 1 and x <= W and y >= 1 and y <= DESK_H then
+      native.setTextColour(proc.content.getTextColour())
+      native.setCursorPos(x, y)
+      native.setCursorBlink(true)
+      return
+    end
+  end
+  native.setCursorBlink(false)
+end
+
+--------------------------------------------------------------------------
+-- input
+--------------------------------------------------------------------------
+
+-- fromTouch: a monitor touch is a click with no matching mouse_up, so it must
+-- never start a window drag - the window would stick to every later touch.
+local function handleMouse(event, fromTouch)
+  local name, button, mx, my = event[1], event[2], event[3], event[4]
+
+  if drag then
+    if name == "mouse_drag" then
+      drag.proc.x = mx - drag.dx
+      drag.proc.y = my - drag.dy
+      clamp(drag.proc)
+      dirty = true
+    elseif name == "mouse_up" then
+      drag = nil
+    end
+    return
+  end
+
+  if desktop.overlayClick(name, button, mx, my) then return end
+
+  if my >= H then
+    desktop.taskbarClick(name, button, mx, my)
+    return
+  end
+
+  local proc = topAt(mx, my)
+  if not proc then
+    desktop.desktopClick(name, button, mx, my)
+    return
+  end
+
+  if name == "mouse_click" then kernel.focusOn(proc) end
+
+  if my == proc.y then
+    if name ~= "mouse_click" then return end
+    local column = mx - proc.x + 1
+    if column == proc.w then
+      kernel.close(proc)
+    elseif column == proc.w - 2 then
+      kernel.toggleFullscreen(proc)
+    elseif column == proc.w - 4 then
+      kernel.minimise(proc)
+    elseif not proc.full and not fromTouch then
+      -- A fullscreen window has nowhere to be dragged to.
+      drag = { proc = proc, dx = mx - proc.x, dy = my - proc.y }
+    end
+    return
+  end
+
+  kernel.resume(proc, { name, button, mx - proc.x + 1, my - proc.y, n = 4 })
+end
+
+local function cycleFocus()
+  local visible = {}
+  for _, proc in ipairs(processes) do
+    if not proc.minimised then visible[#visible + 1] = proc end
+  end
+  if #visible < 2 then
+    if #visible == 1 then kernel.focusOn(visible[1]) end
+    return
+  end
+  -- The focused window is last, so the one before it is "next" in the cycle.
+  kernel.focusOn(visible[#visible - 1])
+end
+
+local function handleKey(event)
+  local name, key = event[1], event[2]
+
+  if name == "key" then
+    if key == keys.leftCtrl or key == keys.rightCtrl then ctrlDown = true end
+  elseif name == "key_up" then
+    if key == keys.leftCtrl or key == keys.rightCtrl then ctrlDown = false end
+  end
+
+  -- Window management shortcuts are taken before the app sees them; a basic
+  -- computer has no mouse, so these are the only way to drive the OS there.
+  if name == "key" and ctrlDown then
+    if key == keys.tab then cycleFocus(); return end
+    if key == keys.w then if focus then kernel.close(focus) end; return end
+    if key == keys.e then desktop.toggleMenu(); return end
+    if key == keys.f then if focus then kernel.toggleFullscreen(focus) end; return end
+  end
+
+  if desktop.overlayKey(event) then return end
+  if focus then
+    kernel.resume(focus, event)
+  else
+    desktop.desktopKey(event)   -- arrow-key navigation of the icon grid
+  end
+end
+
+--------------------------------------------------------------------------
+-- boot
+--------------------------------------------------------------------------
+
+function kernel.setDesktop(d)
+  desktop = d
+end
+
+-- Where Slate was launched from. Settings needs it to write a boot script that
+-- points back here, and guessing it from shell state would be fragile.
+function kernel.setRoot(path)
+  root = path or ""
+end
+
+function kernel.stop()
+  alive = false
+end
+
+-- Power actions end the event loop first, so the sequence owns a clean screen
+-- with no windows left to redraw over it.
+function kernel.power(mode)
+  pendingPower = (mode == "reboot") and "reboot" or "shutdown"
+  alive = false
+end
+
+function kernel.run()
+  if not desktop then
+    error("kernel.run: no desktop registered (call kernel.setDesktop first)", 0)
+  end
+  -- The compositor reads window buffers directly. Without getLine there is no
+  -- way to stack windows correctly, so say so now rather than drawing garbage.
+  if not window.create(native, 1, 1, 1, 1, false).getLine then
+    error("Slate needs CC:Tweaked (window.getLine is missing)", 0)
+  end
+  background = window.create(native, 1, 1, W, DESK_H, false)
+  screen = window.create(native, 1, 1, W, H, false)
+
+  while alive do
+    if dirty then kernel.draw() end
+    local event = table.pack(os.pullEventRaw())
+    local name = event[1]
+
+    if name == "term_resize" then
+      W, H = native.getSize()
+      DESK_H = H - 1
+      background = window.create(native, 1, 1, W, DESK_H, false)
+      screen = window.create(native, 1, 1, W, H, false)
+      for _, proc in ipairs(processes) do
+        if proc.full then
+          -- A maximised window means "fill the screen", so it follows the
+          -- screen rather than keeping the size it happened to have.
+          proc.x, proc.y, proc.w, proc.h = 1, 1, W, DESK_H
+          proc.frame.reposition(1, 1, proc.w, proc.h)
+          proc.content.reposition(1, 2, proc.w, proc.h - 1)
+          kernel.resume(proc, { "term_resize", n = 1 })
+        end
+        clamp(proc)
+      end
+      dirty = true
+    elseif name == "mouse_click" or name == "mouse_up"
+        or name == "mouse_drag" or name == "mouse_scroll" then
+      handleMouse(event)
+
+    elseif name == "monitor_touch" then
+      -- An advanced monitor showing the mirror can drive Slate directly.
+      if screens.owns(event[2]) then
+        handleMouse({ "mouse_click", 1, event[3], event[4], n = 4 }, true)
+      end
+
+    elseif name == "monitor_resize" then
+      if screens.owns(event[2]) then
+        screens.clearAll()
+        dirty = true
+      end
+
+    elseif name == "peripheral_detach" then
+      -- A wrapped monitor that has been broken off would throw on next use.
+      screens.forget(event[2])
+      dirty = true
+      broadcast(event)
+    elseif name == "key" or name == "key_up" or name == "char" or name == "paste" then
+      handleKey(event)
+    elseif name == "terminate" then
+      -- Ctrl+T closes the focused window rather than killing the whole OS;
+      -- shutting down is a deliberate choice in the menu.
+      if focus then kernel.resume(focus, event) end
+    else
+      desktop.systemEvent(event)
+      broadcast(event)
+    end
+  end
+
+  -- Leaving Slate should not leave a desktop frozen on someone's wall.
+  screens.clearAll()
+
+  if pendingPower then bootseq.run(pendingPower) end
+end
+
+return kernel

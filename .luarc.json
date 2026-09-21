@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime": {
+    "version": "Lua 5.2"
+  },
+  "diagnostics": {
+    "globals": [
+      "colours", "colors", "commands", "disk", "fs", "gps", "help", "http",
+      "keys", "multishell", "paintutils", "parallel", "peripheral", "pocket",
+      "rednet", "redstone", "rs", "settings", "shell", "term", "textutils",
+      "turtle", "vector", "window",
+      "printError", "write", "read", "sleep", "_HOST", "_CC_DEFAULT_SETTINGS"
+    ],
+    "disable": [
+      "undefined-field",
+      "deprecated"
+    ]
+  },
+  "workspace": {
+    "checkThirdParty": false
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "version": "1.2",
+  "files": [
+    "apps/devices.lua",
+    "apps/editor.lua",
+    "apps/files.lua",
+    "apps/messenger.lua",
+    "apps/minebit.lua",
+    "apps/music.lua",
+    "apps/settings.lua",
+    "apps/tasks.lua",
+    "apps/terminal.lua",
+    "apps/updater.lua",
+    "games/blocks.lua",
+    "games/snake.lua",
+    "startup.lua",
+    "system/apps.lua",
+    "system/bootseq.lua",
+    "system/desktop.lua",
+    "system/games.lua",
+    "system/kernel.lua",
+    "system/notify.lua",
+    "system/peripherals.lua",
+    "system/screens.lua",
+    "system/sound.lua",
+    "system/theme.lua",
+    "system/ui.lua",
+    "system/update.lua"
+  ],
+  "notes": "Reboot sequence, Minebit games, notifications, auto-update, task manager."
+}
