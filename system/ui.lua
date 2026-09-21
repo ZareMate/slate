@@ -69,6 +69,40 @@ function ui.scrollbar(target, x, y, h, total, offset, track, thumb)
   ui.fill(target, x, y + pos, 1, size, thumb)
 end
 
+-- CC has exactly one font at one weight: there is no bold, and no `&l`. What
+-- reads as bold on a terminal is inverse video, so that is what "strong" means
+-- here. Everything below is a way of getting emphasis without a second font.
+
+-- Inverse-video run. The nearest thing to bold CC can actually draw.
+function ui.strong(target, x, y, text, fg, bg)
+  ui.text(target, x, y, " " .. text .. " ", bg, fg)
+end
+
+-- Letter-spaced heading: "S L A T E". Wide text reads as heavier without
+-- needing a heavier face.
+function ui.spaced(text)
+  return (tostring(text):upper():gsub("(.)", "%1 "):gsub(" $", ""))
+end
+
+-- A title row with an accent underline - the blockiness goes away when a
+-- heading is a line of colour rather than a filled bar of it.
+function ui.heading(target, x, y, w, text, fg, bg, accent)
+  ui.row(target, x, y, w, " " .. text, fg, bg)
+  ui.fill(target, x + 1, y + 1, math.min(w - 2, #text + 1), 1, accent)
+end
+
+-- A thin rule instead of a solid divider.
+function ui.rule(target, x, y, w, colour, bg)
+  ui.text(target, x, y, ("-"):rep(w), colour, bg)
+end
+
+-- Arrow glyphs that CC's font genuinely has (CP437 range), used widely by
+-- CraftOS programs. Safer than guessing at box-drawing characters.
+ui.glyph = {
+  up = "\30", down = "\31", right = "\16", left = "\17",
+  bullet = "\7", dot = "\7",
+}
+
 -- Word-wrap to a column width, keeping existing line breaks. Used by the crash
 -- screen and by Messenger, so it lives here rather than in both.
 function ui.wrap(text, width)

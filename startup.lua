@@ -54,6 +54,10 @@ local function boot()
 
   theme.load()      -- accent and wallpaper chosen in Settings last time
   theme.apply()
+
+  -- First run gets a short setup before the desktop ever appears.
+  local oobe = use("system/oobe")
+  if oobe.needed() then oobe.run() end
   kernel.setRoot(ROOT)
   kernel.setDesktop(desktop)
   desktop.init(kernel, use)

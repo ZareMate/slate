@@ -1,0 +1,64 @@
+{
+  "apps": [
+    {
+      "id": "clock",
+      "title": "Clock",
+      "file": "clock.lua",
+      "blurb": "Big readable clock, in-game or real time.",
+      "w": 40,
+      "h": 14,
+      "api": 1,
+      "icon": [" 00000 ", "0  0  0", " 00000 "]
+    },
+    {
+      "id": "weather",
+      "title": "Weather",
+      "file": "weather.lua",
+      "blurb": "Real-world forecast for a place you pick.",
+      "w": 38,
+      "h": 14,
+      "api": 1,
+      "icon": [" 00000 ", "0000000", " 3 3 3 "]
+    },
+    {
+      "id": "calc",
+      "title": "Calc",
+      "file": "calc.lua",
+      "blurb": "Calculator with functions and history.",
+      "w": 36,
+      "h": 14,
+      "api": 1,
+      "icon": ["7777777", "70 0 07", "7777777"]
+    },
+    {
+      "id": "notes",
+      "title": "Notes",
+      "file": "notes.lua",
+      "blurb": "Short notes, kept in /notes as plain text.",
+      "w": 40,
+      "h": 14,
+      "api": 2,
+      "icon": ["0000000", "0888880", "0088000"]
+    },
+    {
+      "id": "paint",
+      "title": "Paint",
+      "file": "paint.lua",
+      "blurb": "Draw pictures and save them as .nfp.",
+      "w": 46,
+      "h": 16,
+      "api": 1,
+      "icon": ["e14d9b ", "  000  ", "  000  "]
+    },
+    {
+      "id": "tunes",
+      "title": "Tunes",
+      "file": "tunes.lua",
+      "blurb": "Step sequencer for the speaker. Needs one.",
+      "w": 44,
+      "h": 15,
+      "api": 1,
+      "icon": ["5 d 9 b", "5 d 9 b", "5 d 9 b"]
+    }
+  ]
+}

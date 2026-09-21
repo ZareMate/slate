@@ -18,6 +18,7 @@ local ui = use("system/ui")
 local screens = use("system/screens")
 local bootseq = use("system/bootseq")
 local notify = use("system/notify")
+local compat = use("system/compat")
 
 local kernel = {}
 
@@ -146,7 +147,9 @@ function kernel.toggleFullscreen(proc)
 end
 
 local function contextFor(proc)
-  return {
+  -- compat.context adds ctx.api and makes unknown fields no-ops, so an app
+  -- built for a different Slate version degrades instead of crashing.
+  return compat.context({
     close = function() kernel.close(proc) end,
     setTitle = function(text) proc.title = tostring(text); dirty = true end,
     launch = function(id, args) if kernel.launcher then return kernel.launcher(id, args) end end,
@@ -157,7 +160,7 @@ local function contextFor(proc)
     notify = function(text) notify.push(proc.appId, text) end,
     fullscreen = function() kernel.toggleFullscreen(proc) end,
     root = function() return root end,
-  }
+  })
 end
 
 -- Windows open centred. The small stagger stops a second window of the same
@@ -311,6 +314,21 @@ function kernel.draw()
         text = splice(text, t, proc.x)
         fg = splice(fg, f, proc.x)
         bg = splice(bg, b, proc.x)
+
+        -- One column of shadow to the right lifts the window off the
+        -- wallpaper; a solid border would only look blockier.
+        local edge = proc.x + proc.w
+        if edge <= W and y > proc.y then
+          text = splice(text, " ", edge)
+          bg = splice(bg, colours.toBlit(colours.black), edge)
+        end
+      elseif not proc.minimised and y == proc.y + proc.h and proc.y + proc.h <= DESK_H then
+        local from = proc.x + 1
+        local span = math.min(proc.w, W - from + 1)
+        if span > 0 then
+          text = splice(text, (" "):rep(span), from)
+          bg = splice(bg, colours.toBlit(colours.black):rep(span), from)
+        end
       end
     end
     screen.setCursorPos(1, y)

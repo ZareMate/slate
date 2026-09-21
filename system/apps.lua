@@ -1,53 +1,81 @@
---[[ The app registry.
+--[[ The built-in app registry.
 
-  One place that knows what Slate can run, what each app is called, and how
-  big its window wants to be. Adding an app is adding a row here plus a file
-  in apps/ - nothing else in the OS needs to change.
+  `icon` is 3 rows of 7 blit colour characters - real pixel art at character
+  resolution, which is why the desktop no longer shows coloured squares with a
+  letter in them. A space means "leave the wallpaper showing", so icons are not
+  forced to be rectangles.
+
+  blit colours: 0 white 1 orange 2 magenta 3 lightBlue 4 yellow 5 lime
+                6 pink 7 grey 8 lightGrey 9 cyan a purple b blue
+                c brown d green e red f black
 ]]
 
 return {
   {
-    id = "files", title = "Files", letter = "F", colour = colours.orange,
-    module = "apps/files", w = 40, h = 14,
+    id = "files", title = "Files", module = "apps/files", w = 40, h = 14,
+    icon = { "111    ", "1111111", "1111111" },
   },
   {
-    id = "terminal", title = "Terminal", letter = ">", colour = colours.black,
-    module = "apps/terminal", w = 42, h = 14,
+    id = "browser", title = "Furnace", module = "apps/browser", w = 46, h = 16,
+    icon = { " eeeee ", "e11111e", " e444e " },
   },
   {
-    id = "editor", title = "Editor", letter = "E", colour = colours.green,
-    module = "apps/editor", w = 44, h = 15,
+    id = "terminal", title = "Terminal", module = "apps/terminal", w = 42, h = 14,
+    icon = { "fffffff", "f5fffff", "fffffff" },
   },
   {
-    -- single: one speaker, one player. A second window would fight the first
-    -- over speaker_audio_empty events and play two songs at once.
-    id = "music", title = "Music", letter = "M", colour = colours.red,
-    module = "apps/music", w = 44, h = 16, single = true,
+    id = "editor", title = "Editor", module = "apps/editor", w = 44, h = 15,
+    icon = { "0000000", "0888880", "0088800" },
   },
   {
-    -- single: it hosts a name on the rednet protocol, and two windows would
-    -- both answer every hello and double up every incoming message.
-    id = "messenger", title = "Messenger", letter = "@", colour = colours.magenta,
-    module = "apps/messenger", w = 42, h = 15, single = true,
+    id = "music", title = "Music", module = "apps/music", w = 44, h = 16,
+    single = true,
+    icon = { "  eeee ", "  e    ", "ee e   " },
   },
   {
-    id = "minebit", title = "Minebit", letter = "#", colour = colours.lime,
-    module = "apps/minebit", w = 44, h = 16,
+    id = "messenger", title = "Messenger", module = "apps/messenger", w = 42, h = 15,
+    single = true,
+    icon = { "2222222", "2222222", " 2     " },
   },
   {
-    id = "tasks", title = "Tasks", letter = "%", colour = colours.brown,
-    module = "apps/tasks", w = 40, h = 14, single = true,
+    id = "minebit", title = "Minebit", module = "apps/minebit", w = 44, h = 16,
+    icon = { "5     5", "5555555", " 5   5 " },
   },
   {
-    id = "updater", title = "Update", letter = "^", colour = colours.cyan,
-    module = "apps/updater", w = 40, h = 12, single = true,
+    id = "store", title = "Store", module = "apps/store", w = 44, h = 15,
+    single = true,
+    icon = { " d   d ", "ddddddd", "ddddddd" },
   },
   {
-    id = "devices", title = "Devices", letter = "D", colour = colours.purple,
-    module = "apps/devices", w = 40, h = 13,
+    id = "tasks", title = "Tasks", module = "apps/tasks", w = 40, h = 14,
+    single = true,
+    icon = { "7 7    ", "7 7 7 7", "7 7 7 7" },
   },
   {
-    id = "settings", title = "Settings", letter = "S", colour = colours.blue,
-    module = "apps/settings", w = 36, h = 13,
+    id = "updater", title = "Update", module = "apps/updater", w = 40, h = 12,
+    single = true,
+    icon = { "   9   ", "  999  ", " 99999 " },
+  },
+  {
+    id = "devices", title = "Devices", module = "apps/devices", w = 40, h = 13,
+    icon = { "a   a  ", "aaaaaaa", "  aaa  " },
+  },
+  {
+    id = "freeram", title = "FreeRAM.exe", module = "apps/freeram", w = 38, h = 12,
+    icon = { " 55555 ", "5000005", " 55555 " },
+  },
+  {
+    id = "zare", title = "Zare AV", module = "apps/zare", w = 38, h = 13,
+    single = true,
+    icon = { " ddddd ", "d00000d", " dd0dd " },
+  },
+  {
+    id = "console", title = "Console", module = "apps/console", w = 44, h = 15,
+    single = true, dev = true,
+    icon = { "fffffff", "f5 ffff", "fffffff" },
+  },
+  {
+    id = "settings", title = "Settings", module = "apps/settings", w = 36, h = 13,
+    icon = { " b b b ", "bbbbbbb", " bbbbb " },
   },
 }

@@ -15,17 +15,14 @@ local sound = use("system/sound")
 
 local bootseq = {}
 
--- Seconds per stage. Totals 40, which is inside the 30s-1m the sequence is
--- meant to take; the last stage is the one that actually pulls the power.
+-- Seconds per stage. Totals 7: long enough to read what it is doing, short
+-- enough that restarting is not a chore.
 local STAGES = {
-  { "Closing windows",       4, 6 },
-  { "Saving settings",       3, 8 },
-  { "Stopping services",     5, 10 },
-  { "Releasing peripherals", 4, 12 },
-  { "Flushing disk buffers", 6, 13 },
-  { "Syncing world state",   7, 15 },
-  { "Unmounting /",          5, 17 },
-  { "Powering down",         6, 19 },
+  { "Closing windows",  1.5, 6 },
+  { "Saving settings",  1.5, 10 },
+  { "Flushing disk",    1.5, 13 },
+  { "Unmounting /",     1.5, 16 },
+  { "Powering down",    1.0, 19 },
 }
 
 local function total()
@@ -79,7 +76,7 @@ function bootseq.run(mode)
     local name, seconds, pitch = stage[1], stage[2], stage[3]
     sound.note("bit", 1, pitch)
 
-    local steps = seconds * 4          -- redraw 4x a second so it feels alive
+    local steps = math.max(1, math.floor(seconds * 4))  -- redraw 4x a second
     for step = 1, steps do
       paint(name, elapsed / duration)
       sleep(0.25)

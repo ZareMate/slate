@@ -10,6 +10,7 @@ local ui = use("system/ui")
 local theme = use("system/theme")
 local screens = use("system/screens")
 local update = use("system/update")
+local dev = use("system/dev")
 
 local app = {}
 
@@ -200,6 +201,17 @@ function app.run(ctx)
           term.setTextColour(colours.black)
           update.setUrl(read())
           say("Saved")
+        end,
+      },
+
+      { kind = "head", label = "Developer" },
+      {
+        kind = "item", label = "Developer mode",
+        value = dev.enabled() and "On" or "Off",
+        act = function()
+          local now = dev.toggle()
+          ctx.redraw()
+          say(now and "Console and stats enabled" or "Developer mode off")
         end,
       },
 
