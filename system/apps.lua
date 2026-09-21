@@ -50,6 +50,13 @@ return {
     icon = { " 99999 ", "9 0 0 9", " 99999 " },
   },
   {
+    -- Talks to your stasis server. Asks for the address and token on first
+    -- run; nothing is baked into the source, which is published publicly.
+    id = "stasis", title = "Stasis", module = "apps/stasis", w = 46, h = 16,
+    single = true, cloud = true,
+    icon = { "  999  ", " 90009 ", "  999  " },
+  },
+  {
     id = "remote", title = "Remote", module = "apps/remote", w = 44, h = 15, cloud = true,
     single = true,
     icon = { "9999999", "9  0  9", "  999  " },

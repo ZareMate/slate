@@ -1,5 +1,5 @@
 {
-  "version": "1.18",
+  "version": "1.19",
   "files": [
     "apps/editor.lua",
     "apps/files.lua",
@@ -36,11 +36,12 @@
     "apps/devices.lua",
     "apps/minebit.lua",
     "apps/remote.lua",
+    "apps/stasis.lua",
     "games/blocks.lua",
     "games/mines.lua",
     "games/pong.lua",
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Apps are fetched from cloud storage on first open; BitAI added."
+  "notes": "Stasis: chamber list and pulls against your stasis server."
 }
