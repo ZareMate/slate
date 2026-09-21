@@ -102,7 +102,8 @@ function app.run(ctx)
 
     state = "busy"
     local base = update.url()
-    local body, err = fetch(base .. "/store/" .. entry.file)
+    local source = type(entry.source) == "string" and entry.source:gsub("/+$", "") or (base .. "/store")
+    local body, err = fetch(source .. "/" .. entry.file)
     if not body then
       state = "list"
       say("Download failed: " .. tostring(err))
