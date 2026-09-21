@@ -1,5 +1,5 @@
 {
-  "version": "1.22",
+  "version": "1.23",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -26,6 +26,7 @@
     "system/peripherals.lua",
     "system/screens.lua",
     "system/sound.lua",
+    "system/sources.lua",
     "system/theme.lua",
     "system/ui.lua",
     "system/update.lua",
@@ -44,5 +45,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Updates now install and restart on their own once the computer is idle."
+  "notes": "Apps come from pluggable sources: anyone can publish, anyone can add a source."
 }

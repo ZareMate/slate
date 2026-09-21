@@ -127,6 +127,53 @@ rather than `require()`. That means Slate does not depend on whatever
 `package.path` happens to be, and modules can still see `shell` — which the
 Terminal and Editor need, and which is *not* a true global.
 
+## Publishing an app other people can install
+
+Apps do not live on the computer and are not tied to this repository. The
+Store reads **sources**, and a source is any URL serving two things:
+
+```
+<source>/index.json
+<source>/<file>.lua
+```
+
+`index.json` looks like this:
+
+```json
+{
+  "apps": [
+    {
+      "id": "notes",
+      "title": "Notes",
+      "file": "notes.lua",
+      "blurb": "One line describing it.",
+      "w": 40, "h": 14,
+      "api": 1,
+      "icon": ["0000000", "0888880", "0088000"]
+    }
+  ]
+}
+```
+
+That is the least a static host can do, on purpose: raw GitHub, a Worker, an
+S3 bucket, a folder on your own server. To publish, put those files anywhere
+public and give people the URL. In the Store, **[O] Sources -> Add** and paste
+it; the whole catalogue appears alongside everything else.
+
+Nobody needs write access to anybody else's repository to publish, and nobody
+needs permission to add a source.
+
+Two details worth knowing:
+
+- **The first source to claim an id wins.** Adding a third-party source can
+  never silently replace an app you already have.
+- `api` is the Slate API level the app needs. The Store refuses anything
+  newer than the running OS and marks it "too new" rather than installing
+  something that will fail half way through.
+
+For a one-off - something you wrote, or a file a friend sent you - **[U]** in
+the Store installs straight from a `.lua` URL with no index at all.
+
 ## Adding an app
 
 1. Write `apps/yours.lua` returning a table with `run(ctx, ...)`.
