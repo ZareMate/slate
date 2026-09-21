@@ -7,6 +7,11 @@
         { "apps": [ { "id","title","file","blurb","w","h","icon","api" } ] }
       <source>/<file>
 
+  `file` is a path relative to the source, so apps are served from wherever
+  they already live in a repository - there is no separate store folder to
+  keep in step, and installing is a download rather than a download and a
+  move.
+
   That is deliberately the least a static host can do - raw GitHub, a pastebin
   mirror, an S3 bucket, a Worker, a folder on your own server. Anyone can
   publish apps without being given access to anybody else's repository, and
@@ -45,7 +50,7 @@ end
 function sources.official()
   local base = update.url()
   if not base then return nil end
-  return { name = "Slate", url = base .. "/store", builtin = true }
+  return { name = "Slate", url = base, builtin = true }
 end
 
 function sources.list()

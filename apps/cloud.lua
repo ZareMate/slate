@@ -82,18 +82,16 @@ function app.run(ctx)
     for _, path in ipairs(manifest.files or {}) do add(path, "installed") end
     for _, path in ipairs(manifest.cloud or {}) do add(path, "on demand") end
 
-    -- Store apps live under store/ and install into apps/, so they are shown
-    -- by where they land rather than where they are published.
-    local store = fetchJson("/store/index.json")
-    if store then
-      for _, entry in ipairs(store.apps or {}) do
-        if entry.id then
-          entries[#entries + 1] = {
-            path = "apps/" .. entry.id .. ".lua",
-            remote = "store/" .. (entry.file or ""),
-            kind = "store",
-            size = localSize("apps/" .. entry.id .. ".lua"),
-          }
+    -- Catalogue apps are served from where they live, so the path shown is
+    -- the path downloaded - nothing is copied anywhere afterwards.
+    local catalogue = fetchJson("/index.json")
+    if catalogue then
+      local already = {}
+      for _, entry in ipairs(entries) do already[entry.path] = true end
+      for _, entry in ipairs(catalogue.apps or {}) do
+        local path = entry.file or ("apps/" .. tostring(entry.id) .. ".lua")
+        if not already[path] then
+          entries[#entries + 1] = { path = path, kind = "catalogue", size = localSize(path) }
         end
       end
     end
@@ -103,22 +101,12 @@ function app.run(ctx)
   end
 
   local function download(entry)
-    local module = entry.path:gsub("%.lua$", "")
-    local source = entry.remote and entry.remote:gsub("%.lua$", "") or module
-    local ok, why = cloud.fetch(source, root)
+    -- Downloaded straight to where it is served from. No second location to
+    -- move it to, and nothing to get out of step.
+    local ok, why = cloud.fetch(entry.path:gsub("%.lua$", ""), root)
     if not ok then
       say("Failed: " .. tostring(why))
       return
-    end
-    -- A store app publishes under store/ but must land in apps/, so it is
-    -- moved into place after the fetch.
-    if entry.remote then
-      local from = fs.combine(root, source .. ".lua")
-      local to = fs.combine(root, entry.path)
-      if from ~= to and fs.exists(from) then
-        pcall(fs.delete, to)
-        pcall(fs.move, from, to)
-      end
     end
     entry.size = localSize(entry.path)
     say("Downloaded " .. fs.getName(entry.path))

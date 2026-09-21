@@ -3,7 +3,7 @@
     {
       "id": "clock",
       "title": "Clock",
-      "file": "clock.lua",
+      "file": "apps/clock.lua",
       "blurb": "Big readable clock, in-game or real time.",
       "w": 40,
       "h": 14,
@@ -17,7 +17,7 @@
     {
       "id": "weather",
       "title": "Weather",
-      "file": "weather.lua",
+      "file": "apps/weather.lua",
       "blurb": "Real-world forecast for a place you pick.",
       "w": 38,
       "h": 14,
@@ -31,7 +31,7 @@
     {
       "id": "calc",
       "title": "Calc",
-      "file": "calc.lua",
+      "file": "apps/calc.lua",
       "blurb": "Calculator with functions and history.",
       "w": 36,
       "h": 14,
@@ -45,7 +45,7 @@
     {
       "id": "notes",
       "title": "Notes",
-      "file": "notes.lua",
+      "file": "apps/notes.lua",
       "blurb": "Short notes, kept in /notes as plain text.",
       "w": 40,
       "h": 14,
@@ -59,7 +59,7 @@
     {
       "id": "paint",
       "title": "Paint",
-      "file": "paint.lua",
+      "file": "apps/paint.lua",
       "blurb": "Draw pictures and save them as .nfp.",
       "w": 46,
       "h": 16,
@@ -73,7 +73,7 @@
     {
       "id": "tunes",
       "title": "Tunes",
-      "file": "tunes.lua",
+      "file": "apps/tunes.lua",
       "blurb": "Step sequencer for the speaker. Needs one.",
       "w": 44,
       "h": 15,
@@ -87,7 +87,7 @@
     {
       "id": "music",
       "title": "Music",
-      "file": "music.lua",
+      "file": "apps/music.lua",
       "blurb": "YouTube audio through a speaker. Search and queue.",
       "w": 44,
       "h": 16,
@@ -102,7 +102,7 @@
     {
       "id": "browser",
       "title": "Furnace",
-      "file": "browser.lua",
+      "file": "apps/browser.lua",
       "blurb": "Text web browser with search.",
       "w": 46,
       "h": 16,
@@ -116,7 +116,7 @@
     {
       "id": "freeram",
       "title": "FreeRAM.exe",
-      "file": "freeram.lua",
+      "file": "apps/freeram.lua",
       "blurb": "Frees up RAM. Totally safe. Trust me.",
       "w": 38,
       "h": 12,
@@ -130,7 +130,7 @@
     {
       "id": "zare",
       "title": "Zare AV",
-      "file": "zare.lua",
+      "file": "apps/zare.lua",
       "blurb": "Antivirus. Removes Trojan.FreeRAM.",
       "w": 38,
       "h": 13,

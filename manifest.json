@@ -1,5 +1,5 @@
 {
-  "version": "1.26",
+  "version": "1.28",
   "files": [
     "apps/cloud.lua",
     "apps/editor.lua",
@@ -34,16 +34,26 @@
   ],
   "cloud": [
     "apps/bitai.lua",
+    "apps/browser.lua",
+    "apps/calc.lua",
+    "apps/clock.lua",
     "apps/console.lua",
     "apps/devices.lua",
+    "apps/freeram.lua",
     "apps/minebit.lua",
+    "apps/music.lua",
+    "apps/notes.lua",
+    "apps/paint.lua",
     "apps/remote.lua",
     "apps/stasis.lua",
+    "apps/tunes.lua",
+    "apps/weather.lua",
+    "apps/zare.lua",
     "games/blocks.lua",
     "games/mines.lua",
     "games/pong.lua",
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Merges ZareMate's store hardening; screen sharing onto monitors."
+  "notes": "No store folder: apps download from where they live in the repo."
 }
