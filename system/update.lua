@@ -15,7 +15,7 @@
 
 local update = {}
 
-update.VERSION = "1.12"
+update.VERSION = "1.13"
 
 local MANIFEST = "manifest.json"
 
@@ -69,22 +69,7 @@ function update.setMode(mode)
 end
 
 function update.auto()
-  -- The whole unattended path in one call: check, and install if there is
--- something newer. Returns the version installed, or nil plus a reason.
---
--- It still stages every file before writing any of them, so an unattended
--- update cannot leave a half-installed OS behind. What it skips is asking.
-function update.applySilently(root)
-  local info, err = update.check()
-  if not info then return nil, err end
-  if not info.newer then return nil, nil end
-
-  local ok, result = update.install(info, root)
-  if not ok then return nil, tostring(result) end
-  return info.version
-end
-
-return update.mode() ~= "off"
+  return update.mode() ~= "off"
 end
 
 function update.setAuto(on)
@@ -173,6 +158,21 @@ function update.install(info, root, progress)
   end
 
   return true, total
+end
+
+-- The whole unattended path in one call: check, and install if there is
+-- something newer. Returns the version installed, or nil plus a reason.
+--
+-- It still stages every file before writing any of them, so an unattended
+-- update cannot leave a half-installed OS behind. What it skips is asking.
+function update.applySilently(root)
+  local info, err = update.check()
+  if not info then return nil, err end
+  if not info.newer then return nil, nil end
+
+  local ok, result = update.install(info, root)
+  if not ok then return nil, tostring(result) end
+  return info.version
 end
 
 return update

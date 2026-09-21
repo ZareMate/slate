@@ -1,5 +1,5 @@
 {
-  "version": "1.12",
+  "version": "1.13",
   "files": [
     "apps/console.lua",
     "apps/devices.lua",
@@ -37,5 +37,5 @@
     "system/update.lua",
     "system/wallpaper.lua"
   ],
-  "notes": "Messenger built in, animated backgrounds, sectioned Settings, unattended updates, developer mode fixed."
+  "notes": "Fixes the crash on startup: update.applySilently was nested inside update.auto()."
 }
