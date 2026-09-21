@@ -237,11 +237,27 @@ function app.run(ctx)
 
   refresh()
   draw()
+  local ticker = os.startTimer(60)
 
   while true do
     local event, a, mx, my = os.pullEvent()
 
-    if event == "key" then
+    if event == "timer" and a == ticker then
+      ticker = os.startTimer(60)
+      -- Quietly: a catalogue that reloads under your cursor should not also
+      -- throw away where you were.
+      if state == "list" or state == "failed" then
+        local keep = entries[index] and entries[index].id
+        refresh()
+        if keep then
+          for position, entry in ipairs(entries) do
+            if entry.id == keep then index = position break end
+          end
+        end
+      end
+      draw()
+
+    elseif event == "key" then
       local rows = visibleRows()
       if a == keys.down then index = math.min(#entries, index + 1)
       elseif a == keys.up then index = math.max(1, index - 1)

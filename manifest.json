@@ -1,6 +1,7 @@
 {
-  "version": "1.20",
+  "version": "1.21",
   "files": [
+    "apps/cloud.lua",
     "apps/editor.lua",
     "apps/files.lua",
     "apps/messenger.lua",
@@ -43,5 +44,5 @@
     "games/snake.lua",
     "games/stacks.lua"
   ],
-  "notes": "Minesweeper is readable now: white opened cells, dark numbers, a yellow cursor."
+  "notes": "Cloud storage manager, and pages that show remote state refresh themselves."
 }

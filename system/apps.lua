@@ -71,6 +71,11 @@ return {
     icon = { " d   d ", "ddddddd", "ddddddd" },
   },
   {
+    id = "cloud", title = "Cloud", module = "apps/cloud", w = 46, h = 16,
+    single = true,
+    icon = { "  888  ", " 88888 ", "8888888" },
+  },
+  {
     id = "tasks", title = "Tasks", module = "apps/tasks", w = 40, h = 14,
     single = true,
     icon = { "7 7    ", "7 7 7 7", "7 7 7 7" },

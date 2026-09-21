@@ -168,13 +168,32 @@ function app.run(ctx, startDir)
   ctx.setTitle("Files " .. ui.clip(dir, 18))
   draw()
 
+  -- The disk changes underneath this window - a download finishing, another
+  -- app writing a file - so the listing refreshes itself rather than showing
+  -- a stale directory until someone presses R.
+  local ticker = os.startTimer(5)
+
   while true do
     local event = { os.pullEvent() }
     local name = event[1]
     local w, h = term.getSize()
     local rows = h - 2
 
-    if name == "key" then
+    if name == "timer" and event[2] == ticker then
+      ticker = os.startTimer(5)
+      local before = #entries
+      local keep = entries[index] and entries[index].name
+      entries, listError = readDir(dir)
+      -- Keep the selection on the same file when the list shifts under it.
+      if keep and #entries ~= before then
+        for position, entry in ipairs(entries) do
+          if entry.name == keep then index = position break end
+        end
+      end
+      if index > #entries then index = math.max(1, #entries) end
+      draw()
+
+    elseif name == "key" then
       local key = event[2]
       if key == keys.down then index = math.min(#entries, index + 1)
       elseif key == keys.up then index = math.max(1, index - 1)
